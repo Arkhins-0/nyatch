@@ -28,7 +28,7 @@ internal sealed partial class DeckWindow
     private bool _sideOpen;
     private bool _sideHotkeyHooked;
 
-    private bool SideOn => _settings.Get("Side.Enabled") == "true";
+    private bool SideOn => NotchUse.SideInUse(_settings);
 
     /// <summary>The chat on the side panel's page.</summary>
     private AiPage? SideAi => _sideTab >= 0 && _sideTab < _sideTabs.Count ? _aiPages[_sideTabs[_sideTab]] : null;

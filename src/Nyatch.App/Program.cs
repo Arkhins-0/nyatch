@@ -149,6 +149,8 @@ internal sealed class NyatchApp : Application
         }
         // The theme's font, the same way: over the font the user chose, while the theme is in use.
         if (ThemeFonts.Ready(_settings, packs) is { } font) derived["Themes.FontFamily"] = font;
+        // The second notch and the LLM panel, turned off but with their hotkeys on: hidden until a hotkey opens them.
+        NotchUse.Derive(_settings, derived);
         _settings.Save(derived);
         SignInLaunch.Apply(_settings.Get("General.LaunchAtStartup") == "true");
     }

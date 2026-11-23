@@ -605,6 +605,7 @@ enum class ContourBorderMode {
 struct Settings {
     // Nyatch: the second notch (Deck.* settings).
     bool deckEnabled = true;
+    bool deckHiddenAtRest = false;  // Nyatch: Deck.HiddenAtRest: shown only while open (from its hotkey)
     Position deckPosition = Position::BottomCenter;
     int deckOffsetX = 0;
     int deckOffsetY = 0;
@@ -613,6 +614,7 @@ struct Settings {
     std::wstring deckEmoji = L"paws";  // Deck.Emoji: beside the closed notch's text: "paws", "none" or an emoji
     // Nyatch: the side panel for the chats (Side.* settings): on a screen edge, a share of its height.
     bool sideEnabled = true;
+    bool sideHiddenAtRest = false;  // Nyatch: Side.HiddenAtRest: shown only while open (from its hotkey)
     bool sideRight = true;        // Side.Edge: right, or left
     float sideHeight = 0.75f;     // Side.Height: 50, 75 or 100 (%)
     int sideAnchor = 1;           // Side.Anchor: 0 top, 1 centre, 2 bottom
@@ -2795,6 +2797,7 @@ void LoadSettings() {
     next.alwaysOnTop = Wh_GetIntSetting(L"Behavior.AlwaysOnTop") != 0;
     {
         next.deckEnabled = Wh_GetIntSetting(L"Deck.Enabled") != 0;
+        next.deckHiddenAtRest = Wh_GetIntSetting(L"Deck.HiddenAtRest") != 0;
         const std::wstring where = GetStringSettingCopy(L"Deck.Position");
         next.deckPosition = where == L"top-center" ? Position::TopCenter
                           : where == L"top-left" ? Position::TopLeft
@@ -2811,6 +2814,7 @@ void LoadSettings() {
     }
     {
         next.sideEnabled = Wh_GetIntSetting(L"Side.Enabled") != 0;
+        next.sideHiddenAtRest = Wh_GetIntSetting(L"Side.HiddenAtRest") != 0;
         next.sideRight = GetStringSettingCopy(L"Side.Edge") != L"left";
         const int height = Wh_GetIntSetting(L"Side.Height");
         next.sideHeight = height == 25 ? 0.25f : height == 50 ? 0.5f : height == 100 ? 1.0f : 0.75f;

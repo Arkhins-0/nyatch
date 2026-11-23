@@ -530,6 +530,7 @@ DWORD WINAPI ThreadProc(LPVOID) {
     std::wstring paintedPage;
     int paintedIndex = -1, paintedCount = -1;
     bool asked = false;            // opened by the app or a click: open until the pointer has been on it and left
+    double lastOpenAt = -10.0;     // Nyatch: when it was last open (a hidden one goes once it has closed)
     bool askedSeen = false;        // ...and the pointer has been on it since
     bool quietUntilLeft = false;   // closed by the app with the pointer on it: no hover-open until it leaves
     bool keyboardTaken = false;    // opened from the keyboard, and the keyboard has come to it
@@ -562,7 +563,11 @@ DWORD WINAPI ThreadProc(LPVOID) {
             settingsAt = now;
         }
 
-        if (!(kSide ? settings.sideEnabled : settings.deckEnabled)) {
+        // Nyatch: hidden (turned off, with its hotkey still on): not on the screen until the hotkey opens it,
+        // and gone again a moment after it closes.
+        if (open || asked || g_request.load() == 1) lastOpenAt = now;
+        const bool hiddenAtRest = kSide ? settings.sideHiddenAtRest : settings.deckHiddenAtRest;
+        if (!(kSide ? settings.sideEnabled : settings.deckEnabled) || (hiddenAtRest && now - lastOpenAt > 0.7)) {
             if (shown) {
                 ShowWindow(hwnd, SW_HIDE);
                 DwmBackdrop::HideAll();

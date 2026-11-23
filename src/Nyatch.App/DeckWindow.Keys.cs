@@ -23,6 +23,10 @@ internal sealed partial class DeckWindow
     private bool _hotkeyHooked;
     private readonly List<string> _keyTargets = [];
 
+    // The picker's LLM tile: it opens the LLM panel (on the chat last used), and the letter it has.
+    private const string LlmTarget = "llm";
+    private char _llmLetter;
+
     /// <summary>The next page the wheel turns to: round the pages on the notch (from a hotkey-only page, the first or last of them).</summary>
     private int TurnFrom(int tab, bool forward)
     {
@@ -68,7 +72,7 @@ internal sealed partial class DeckWindow
         }
         UnregisterHotKey(window, DeckHotkeyId);
         _hotkeyShown = "";
-        if (_settings.Get("Deck.Enabled") != "true" || _settings.Get("Shortcuts.DeckHotkeyEnabled") != "true") return;
+        if (_settings.Get("Shortcuts.DeckHotkeyEnabled") != "true") return;
         var modifiers = _settings.Get("Shortcuts.DeckModifiers");
         var key = _settings.Get("Shortcuts.DeckKey");
         if (ParseHotkey(modifiers, key) is not { } hotkey) return;
@@ -105,9 +109,20 @@ internal sealed partial class DeckWindow
         var records = new List<string> { "H\u001F" + _hotkeyShown };
         foreach (var (id, show) in DeckPages.Order(_settings.Get("Deck.Pages")))
         {
+            // While the LLM panel is on, the chats are there: one LLM tile below stands for them.
+            if (SideOn && AiIds.Contains(id)) continue;
             if (show == PageShow.Hidden || !keys.TryGetValue(id, out var key) || !_pagesById.TryGetValue(id, out var page)) continue;
             _keyTargets.Add(id);
             records.Add(string.Join('\u001F', "K", key.ToString(), page.Name, show == PageShow.HotkeyOnly ? "1" : "0", (_keyTargets.Count - 1).ToString()));
+        }
+        _llmLetter = '\0';
+        if (SideOn)
+        {
+            // L, unless another page has it: then the first letter no page has.
+            var taken = keys.Where(k => !AiIds.Contains(k.Key)).Select(k => k.Value).ToHashSet();
+            _llmLetter = !taken.Contains('L') ? 'L' : Enumerable.Range('A', 26).Select(c => (char)c).FirstOrDefault(c => !taken.Contains(c));
+            _keyTargets.Add(LlmTarget);
+            records.Add(string.Join('\u001F', "K", _llmLetter == '\0' ? "" : _llmLetter.ToString(), "LLM", "0", (_keyTargets.Count - 1).ToString()));
         }
         return string.Join('\u001E', records);
     }
@@ -123,6 +138,11 @@ internal sealed partial class DeckWindow
         if (action >= 60000)
         {
             var letter = (char)(action - 60000);
+            if (letter == _llmLetter && _llmLetter != '\0')
+            {
+                OpenPage(LlmTarget);
+                return;
+            }
             var keys = DeckPages.Keys(_settings.Get("Deck.PageKeys"));
             var id = _keyTargets.FirstOrDefault(t => keys.TryGetValue(t, out var k) && k == letter);
             if (id is not null) OpenPage(id);
@@ -134,7 +154,13 @@ internal sealed partial class DeckWindow
     /// <summary>Open a page, ready to use: the cursor in its text box, if it has one.</summary>
     private void OpenPage(string id)
     {
-        // The chats are on the side panel while it is on: the picker opens it there.
+        // The chats are on the LLM panel while it is on: the picker opens it there.
+        if (id == LlmTarget)
+        {
+            Collapse();
+            OpenSide();
+            return;
+        }
         if (SideOn && AiIds.Contains(id))
         {
             Collapse();

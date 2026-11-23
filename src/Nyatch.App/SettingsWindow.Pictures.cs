@@ -208,7 +208,8 @@ internal sealed partial class SettingsWindow
         Words(c, PicW - 92, 15, 76);
         var keys = DeckPages.Keys(_settings.Get("Deck.PageKeys"));
         // As the picker has them: the pages with a letter, hidden ones left out.
-        var shown = DeckPages.Order(_settings.Get("Deck.Pages")).Where(o => o.Show != PageShow.Hidden && keys.ContainsKey(o.Id)).Take(12).ToList();
+        var llmPanel = NotchUse.SideInUse(_settings);
+        var shown = DeckPages.Order(_settings.Get("Deck.Pages")).Where(o => o.Show != PageShow.Hidden && keys.ContainsKey(o.Id) && !(llmPanel && o.Id is "claude" or "chatgpt" or "gemini")).Take(12).ToList();
         for (var i = 0; i < shown.Count; i++)
         {
             var x = 12 + (i % 3) * 72;

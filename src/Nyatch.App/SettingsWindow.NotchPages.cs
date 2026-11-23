@@ -118,6 +118,10 @@ internal sealed partial class SettingsWindow
         var choices = top ? TopPageChoices : DeckPageChoices;
         var items = top ? ReadTopOrder(_settings.Get("Appearance.TopPages"))
             : DeckPages.Order(_settings.Get("Deck.Pages")).Select(o => new PageItem(o.Id, o.Show)).ToList();
+        // While the LLM panel is on, Claude, ChatGPT and Gemini are there, not on this notch: not listed, but
+        // kept as they are in the saved order, for when the panel is turned off.
+        var aside = !top && NotchUse.SideInUse(_settings) ? items.Where(i => i.Id is "claude" or "chatgpt" or "gemini").ToList() : [];
+        items = items.Except(aside).ToList();
         var keys = DeckPages.Keys(_settings.Get("Deck.PageKeys"));
         // A page of the top notch is on it while it is listed and its feature is on.
         bool On(PageItem item) => item.Show == PageShow.Shown && (!top || FeatureOf(item.Id) is not { } feature || _settings.Get(feature) == "true");
@@ -144,7 +148,7 @@ internal sealed partial class SettingsWindow
         void Save()
         {
             if (top) _settings.Set("Appearance.TopPages", string.Join(",", items.Select(i => (i.Show == PageShow.Hidden ? "-" : "") + i.Id)));
-            else _settings.Set("Deck.Pages", DeckPages.OrderText(items.Select(i => (i.Id, i.Show))));
+            else _settings.Set("Deck.Pages", DeckPages.OrderText(items.Concat(aside).Select(i => (i.Id, i.Show))));
             Changed();
         }
 

@@ -59,7 +59,13 @@ internal sealed partial class SettingsWindow
             var grid = new WrapPanel { Margin = new Thickness(0, 12, 0, 0) };
             var keys = DeckPages.Keys(_settings.Get("Deck.PageKeys"));
             // A hidden page has no letter (one kept from before is not in use).
-            foreach (var (id, show) in order) grid.Children.Add(LetterTile(id, show, show != PageShow.Hidden && keys.TryGetValue(id, out var k) ? k.ToString() : ""));
+            // (The chats have no letters here while the LLM panel has them: the picker's LLM tile opens it.)
+            var llmPanel = NotchUse.SideInUse(_settings);
+            foreach (var (id, show) in order)
+            {
+                if (llmPanel && id is "claude" or "chatgpt" or "gemini") continue;
+                grid.Children.Add(LetterTile(id, show, show != PageShow.Hidden && keys.TryGetValue(id, out var k) ? k.ToString() : ""));
+            }
             letterWords.Children.Add(grid);
         }
         if (_settings.Get("Shortcuts.DeckHotkeyEnabled") != "true") letters.Opacity = 0.5;
@@ -69,8 +75,9 @@ internal sealed partial class SettingsWindow
         var side = HotkeyRow(rows, "Open or close the LLM panel", "On the chat last used, ready to type in.", SideHotkey);
         if (_settings.Get("Side.Enabled") != "true" && WordsOf(side) is { } sideWords)
         {
+            // Turned off, it is hidden: this hotkey still opens it (and with the hotkey off, it is not used).
             var off = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
-            off.Children.Add(Chip("The LLM panel is off", _faint, _high, margin: new Thickness(0, 0, 8, 0)));
+            off.Children.Add(Chip("Hidden: only this hotkey opens it", _faint, _high, margin: new Thickness(0, 0, 8, 0)));
             off.Children.Add(LinkChip("Panel", () => OpenPage("side-layout")));
             sideWords.Children.Add(off);
         }

@@ -494,7 +494,7 @@
   - SideModifiers: ctrl_alt
     $name: LLM panel, held keys
     $description: 'Keys held with the key, joined by _ (ctrl, alt, shift, win).'
-  - SideKey: "A"
+  - SideKey: "L"
     $name: LLM panel, key
     $description: 'One letter, number, Space or F1 to F12.'
   $name: Shortcuts & Hotkeys
@@ -539,7 +539,7 @@
 - Deck:
   - Enabled: true
     $name: Second notch
-    $description: ''
+    $description: 'Off, it is hidden: its hotkey still opens it.'
   - Position: bottom-center
     $name: Position
     $description: ''
@@ -634,7 +634,7 @@
 - Side:
   - Enabled: true
     $name: LLM panel
-    $description: 'Chat with Claude, ChatGPT, Gemini and the other LLMs in a panel that slides in from the edge of the screen.'
+    $description: 'Chat with Claude, ChatGPT, Gemini and the other LLMs in a panel that slides in from the edge of the screen. Off, it is hidden: its hotkey still opens it.'
   - Edge: right
     $name: Edge
     $description: ''

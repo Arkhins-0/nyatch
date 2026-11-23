@@ -460,7 +460,7 @@ internal sealed partial class DeckWindow : Window
     public void Apply()
     {
         ApplySide();
-        if (_settings.Get("Deck.Enabled") != "true")
+        if (!NotchUse.DeckInUse(_settings))
         {
             _appsWatch.Stop();
             ListenToClipboard(false);
