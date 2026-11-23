@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <radialGradient id="tile" cx="50%" cy="43%" r="56%"><stop offset="0" stop-color="#2C1519"/><stop offset="1" stop-color="#130A0D"/></radialGradient>
+    <linearGradient id="ring" x1="20%" y1="20%" x2="80%" y2="80%"><stop offset="0" stop-color="#D7263D"/><stop offset="1" stop-color="#FF6B5B"/></linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="224" fill="url(#tile)"/>
+  <path d="M784,423.6 A286,286 0 1 1 646.3,259.5" fill="none" stroke="url(#ring)" stroke-width="74" stroke-linecap="round"/>
+  <circle cx="731.1" cy="328.2" r="40" fill="#4CC9F0"/>
+  <rect x="356" y="408" width="312" height="100" rx="50" fill="#FFF2EF"/>
+  <rect x="420" y="556" width="184" height="66" rx="33" fill="#FFF2EF" fill-opacity="0.65"/>
+</svg>

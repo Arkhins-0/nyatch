@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Nyatch.App/Nyatch.App.csproj" />
+    <Project Path="src/Nyatch.Core/Nyatch.Core.csproj" />
+    <Project Path="src/Nyatch.ThemeEditor/Nyatch.ThemeEditor.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Nyatch.Core.Tests/Nyatch.Core.Tests.csproj" />
+  </Folder>
+</Solution>

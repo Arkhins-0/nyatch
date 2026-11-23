@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <AssemblyName>Nyatch</AssemblyName>
+    <RootNamespace>Nyatch.App</RootNamespace>
+    <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+    <!-- Only for the notification-area icon, which WPF does not have. -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <PlatformTarget>x64</PlatformTarget>
+    <ApplicationIcon>nyatch.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- The Windows 11 look for WPF controls is still marked experimental. -->
+    <NoWarn>$(NoWarn);WPF0001</NoWarn>
+    <!-- The island library to ship: Release unless a build asks otherwise. -->
+    <IslandConfiguration Condition="'$(IslandConfiguration)'==''">Release</IslandConfiguration>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nyatch.Core\Nyatch.Core.csproj" />
+    <!-- The theme editor, opened from the Theme page in a window of its own. -->
+    <ProjectReference Include="..\Nyatch.ThemeEditor\Nyatch.ThemeEditor.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The island itself, built from native\Nyatch.Island (see build.ps1). -->
+    <Content Include="..\..\native\Nyatch.Island\bin\$(IslandConfiguration)\Nyatch.Island.dll" Link="Nyatch.Island.dll" CopyToOutputDirectory="PreserveNewest" />
+    <!-- File Explorer folder sizes, built from native\Nyatch.Explorer. -->
+    <Content Include="..\..\native\Nyatch.Explorer\bin\$(IslandConfiguration)\Nyatch.Explorer.dll" Link="Nyatch.Explorer.dll" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The licence and notice, shown from the About page and kept with every copy. -->
+    <Content Include="..\..\LICENSE" Link="LICENSE" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\NOTICE" Link="NOTICE" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The weather pictures the island draws (an icon set, rendered from its SVGs in assets\weather\svg). -->
+    <Content Include="..\..\assets\weather\png\*.png" Link="weather\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The assistants' logos, for the side panel's buttons that switch between the chats. -->
+    <Content Include="..\..\assets\ai\*.png" Link="ai\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Resource Include="nyatch.ico" />
+    <Resource Include="nyatch-logo.png" />
+  </ItemGroup>
+
+</Project>

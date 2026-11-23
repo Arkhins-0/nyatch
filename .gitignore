@@ -1,0 +1,11 @@
+# Build output
+bin/
+obj/
+out/
+*.user
+.vs/
+build.log
+
+# WiX extensions: fetched by build.ps1 -Msi when missing
+installer/.wix/
+dist/

@@ -1,0 +1,12 @@
+{
+  "name": "nyatch-site",
+  "private": true,
+  "type": "module",
+  "description": "nyatch.arkhins.com: Nyatch's home page, its downloads and its character packs.",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

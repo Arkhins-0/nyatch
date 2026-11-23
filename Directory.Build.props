@@ -1,0 +1,12 @@
+<Project>
+  <!-- Shared by every project: who made Nyatch, and under what licence. -->
+  <PropertyGroup>
+    <Authors>Arkhins</Authors>
+    <Company>Arkhins</Company>
+    <Product>Nyatch</Product>
+    <Copyright>Copyright 2026 Arkhins (https://arkhins.com). Licensed under the Apache License 2.0.</Copyright>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <!-- The version, from version.txt (the installer and the updater read the same file). -->
+    <Version>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)version.txt').Trim())</Version>
+  </PropertyGroup>
+</Project>

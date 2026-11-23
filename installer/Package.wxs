@@ -1,0 +1,175 @@
+<!--
+  The Nyatch installer (WiX 5). Built by ..\build.ps1 -Msi, which publishes the app and writes the
+  file list (AppFiles.wxs) first.
+
+  Pages: Welcome, Install folder, Options (start with Windows, automatic updates, desktop shortcut),
+  Ready, Progress, Finish (start Nyatch now). No licence page to click through.
+
+  Installs for the current user only, so no administrator prompt, by default into
+  %LocalAppData%\Programs\Nyatch. Settings, notes and the clipboard history in %AppData%\Nyatch
+  are left alone on uninstall.
+
+  The updater runs it silently with AUTOLAUNCH=1: it closes Nyatch, upgrades it in place (the same
+  folder and shortcuts, found in the registry) and starts it again.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+  <Package Name="Nyatch"
+           Manufacturer="Arkhins"
+           Version="$(var.Version)"
+           UpgradeCode="96C08532-EDB1-4E9C-A9A9-082EEA9A8280"
+           Scope="perMachine"
+           Language="1033">
+    <SummaryInformation Description="Nyatch: the notch and the second notch for Windows" />
+
+    <!-- A newer installer replaces an older Nyatch; an older one refuses to go over a newer. -->
+    <MajorUpgrade AllowSameVersionUpgrades="yes"
+                  DowngradeErrorMessage="A newer version of Nyatch is already installed." />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <Icon Id="NyatchIcon" SourceFile="$(var.IconFile)" />
+    <Property Id="ARPPRODUCTICON" Value="NyatchIcon" />
+    <Property Id="ARPURLINFOABOUT" Value="https://arkhins.com" />
+    <Property Id="ARPCONTACT" Value="arkhins@arkhins.com" />
+
+    <!-- The Options page's choices: on, on, off for a first install. -->
+    <Property Id="STARTUP" Value="1" Secure="yes" />
+    <Property Id="AUTOUPDATE" Value="1" Secure="yes" />
+    <!-- Remembered from the last install, so an upgrade keeps the desktop shortcut and the folder. -->
+    <Property Id="DESKTOPSHORTCUT" Secure="yes">
+      <RegistrySearch Id="RememberDesktopShortcut" Root="HKLM" Key="Software\Nyatch" Name="DesktopShortcut" Type="raw" />
+    </Property>
+    <Property Id="REMEMBEREDFOLDER" Secure="yes">
+      <RegistrySearch Id="RememberFolder" Root="HKLM" Key="Software\Nyatch" Name="InstallFolder" Type="raw" />
+    </Property>
+    <SetDirectory Id="INSTALLFOLDER" Value="[REMEMBEREDFOLDER]" Condition="REMEMBEREDFOLDER" Sequence="both" />
+
+    <!-- What Nyatch reads on its first start: the Options page's choices, as "on" or "off". -->
+    <Property Id="STARTUPCHOICE" Value="off" />
+    <Property Id="AUTOUPDATECHOICE" Value="off" />
+    <SetProperty Id="STARTUPCHOICE" Value="on" Before="InstallInitialize" Sequence="execute" Condition="STARTUP = 1" />
+    <SetProperty Id="AUTOUPDATECHOICE" Value="on" Before="InstallInitialize" Sequence="execute" Condition="AUTOUPDATE = 1" />
+
+    <!-- Installed for the whole PC (the installer asks for administrator rights): Program Files\Nyatch. -->
+    <StandardDirectory Id="ProgramFiles6432Folder">
+      <Directory Id="INSTALLFOLDER" Name="Nyatch" />
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder" />
+    <StandardDirectory Id="DesktopFolder" />
+
+    <!-- A running Nyatch is closed before its files are replaced or removed. -->
+    <util:CloseApplication Id="CloseNyatch" Target="Nyatch.exe" CloseMessage="yes" TerminateProcess="1" Timeout="3" RebootPrompt="no" />
+
+    <Feature Id="Main" Title="Nyatch">
+      <!-- The app's files, folder by folder: written by build.ps1 into AppFiles.wxs. -->
+      <ComponentGroupRef Id="AppFiles" />
+
+      <Component Id="StartMenu" Directory="ProgramMenuFolder" Guid="2C6E1B7A-6D1F-4E57-9B7B-6F1D8C1A4E21">
+        <Shortcut Id="StartMenuShortcut"
+                  Name="Nyatch"
+                  Description="The notch and the second notch for Windows"
+                  Target="[INSTALLFOLDER]Nyatch.exe"
+                  WorkingDirectory="INSTALLFOLDER"
+                  Icon="NyatchIcon" />
+        <RemoveFolder Id="RemoveInstallFolder" Directory="INSTALLFOLDER" On="uninstall" />
+        <!-- Where Nyatch is installed: read by the next installer and by Nyatch's updater. -->
+        <RegistryValue Root="HKLM" Key="Software\Nyatch" Name="InstallFolder" Type="string" Value="[INSTALLFOLDER]" KeyPath="yes" />
+      </Component>
+
+      <!-- "Uninstall Nyatch" in the app's folder and in the Start menu: Windows' own uninstaller for it,
+           the same as Settings > Apps runs (an MSI has no uninstall.exe of its own). -->
+      <Component Id="UninstallShortcuts" Directory="INSTALLFOLDER" Guid="5D8E2F1A-7C34-4B96-A0E1-3F6B9C2D8E47">
+        <Shortcut Id="UninstallInFolder"
+                  Name="Uninstall Nyatch"
+                  Description="Remove Nyatch from this PC"
+                  Target="[System64Folder]msiexec.exe"
+                  Arguments="/x [ProductCode]"
+                  Icon="NyatchIcon" />
+        <Shortcut Id="UninstallInStartMenu"
+                  Directory="ProgramMenuFolder"
+                  Name="Uninstall Nyatch"
+                  Description="Remove Nyatch from this PC"
+                  Target="[System64Folder]msiexec.exe"
+                  Arguments="/x [ProductCode]"
+                  Icon="NyatchIcon" />
+        <RegistryValue Root="HKLM" Key="Software\Nyatch" Name="UninstallShortcuts" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+
+      <Component Id="DesktopShortcut" Directory="DesktopFolder" Guid="7F2B9D4E-3A61-4C8B-9E0D-5B7C2A1F6E83" Condition="DESKTOPSHORTCUT = 1">
+        <Shortcut Id="DesktopShortcutLink"
+                  Name="Nyatch"
+                  Description="The notch and the second notch for Windows"
+                  Target="[INSTALLFOLDER]Nyatch.exe"
+                  WorkingDirectory="INSTALLFOLDER"
+                  Icon="NyatchIcon" />
+        <RegistryValue Root="HKLM" Key="Software\Nyatch" Name="DesktopShortcut" Type="string" Value="1" KeyPath="yes" />
+      </Component>
+
+      <!-- Written only when the Options page was shown (not by the updater's silent upgrades). -->
+      <Component Id="SetupChoices" Directory="INSTALLFOLDER" Guid="A3E5C7B9-1D2F-4A6B-8C0E-9F1A2B3C4D5E" Condition="SHOWEDOPTIONS = 1">
+        <RegistryValue Root="HKCU" Key="Software\Nyatch" Name="SetupLaunchAtStartup" Type="string" Value="[STARTUPCHOICE]" />
+        <RegistryValue Root="HKCU" Key="Software\Nyatch" Name="SetupAutoUpdate" Type="string" Value="[AUTOUPDATECHOICE]" />
+        <RegistryValue Root="HKCU" Key="Software\Nyatch" Name="SetupChoices" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </Feature>
+
+    <!-- Start Nyatch: from the Finish page when ticked, or after a silent upgrade (AUTOLAUNCH=1). -->
+    <CustomAction Id="StartNyatch" Directory="INSTALLFOLDER" ExeCommand="&quot;[INSTALLFOLDER]Nyatch.exe&quot;" Return="asyncNoWait" />
+    <!-- Uninstalling: take Nyatch off the programs started at sign-in, while its files are still there. -->
+    <CustomAction Id="ForgetStartup" Directory="INSTALLFOLDER" ExeCommand="&quot;[INSTALLFOLDER]Nyatch.exe&quot; --forget-startup" Execute="deferred" Impersonate="yes" Return="ignore" />
+    <CustomAction Id="AppendNyatch" Script="jscript" ScriptSourceFile="AppendNyatch.js" />
+    <!-- Uninstalling with its window showing (not an update, not silent): "Also remove your settings and data?" -->
+    <CustomAction Id="AskRemoveData" Directory="INSTALLFOLDER" ExeCommand="&quot;[INSTALLFOLDER]Nyatch.exe&quot; --ask-remove-data" Return="ignore" />
+    <InstallExecuteSequence>
+      <Custom Action="AskRemoveData" Before="InstallInitialize" Condition='REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE AND UILevel &gt; 2' />
+      <Custom Action="ForgetStartup" Before="RemoveFiles" Condition='REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE' />
+      <Custom Action="StartNyatch" After="InstallFinalize" Condition="NOT REMOVE AND AUTOLAUNCH = 1" />
+    </InstallExecuteSequence>
+
+    <!-- ===== The pages ===== -->
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+    <WixVariable Id="WixUIBannerBmp" Value="$(var.BrandDir)\banner.bmp" />
+    <WixVariable Id="WixUIDialogBmp" Value="$(var.BrandDir)\dialog.bmp" />
+    <!-- "Start Nyatch now" on the Finish page, after installing (not after uninstalling). -->
+    <SetProperty Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Start Nyatch now" Before="CostFinalize" Sequence="ui" Condition="NOT Installed" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
+
+    <UI>
+      <Dialog Id="OptionsDlg" Width="370" Height="270" Title="[ProductName] Setup">
+        <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="!(loc.InstallDirDlgBannerBitmap)" />
+        <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="280" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}How Nyatch runs" />
+        <Control Id="Description" Type="Text" X="25" Y="23" Width="280" Height="15" Transparent="yes" NoPrefix="yes" Text="These can be changed later in Nyatch settings." />
+        <Control Id="Startup" Type="CheckBox" X="20" Y="62" Width="330" Height="17" Property="STARTUP" CheckBoxValue="1" Text="Start Nyatch when Windows starts" />
+        <Control Id="StartupNote" Type="Text" X="37" Y="80" Width="313" Height="12" NoPrefix="yes" Text="Both notches open when you sign in." />
+        <Control Id="AutoUpdate" Type="CheckBox" X="20" Y="102" Width="330" Height="17" Property="AUTOUPDATE" CheckBoxValue="1" Text="Keep Nyatch up to date automatically" />
+        <Control Id="AutoUpdateNote" Type="Text" X="37" Y="120" Width="313" Height="22" NoPrefix="yes" Text="New versions are downloaded, checked and installed while the PC is idle." />
+        <Control Id="Desktop" Type="CheckBox" X="20" Y="148" Width="330" Height="17" Property="DESKTOPSHORTCUT" CheckBoxValue="1" Text="Add a shortcut to the desktop" />
+        <Control Id="MadeBy" Type="Hyperlink" X="20" Y="212" Width="330" Height="12" Text="Made by Arkhins · &lt;a href=&quot;https://arkhins.com&quot;&gt;arkhins.com&lt;/a&gt;" />
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)" />
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)" />
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
+          <Publish Event="SpawnDialog" Value="CancelDlg" />
+        </Control>
+      </Dialog>
+
+      <!-- A folder picked with Browse gets its own "Nyatch" folder inside it, shown in the path at once. -->
+      <Publish Dialog="BrowseDlg" Control="OK" Event="DoAction" Value="AppendNyatch" Order="5" />
+      <Publish Dialog="BrowseDlg" Control="OK" Event="SetTargetPath" Value="INSTALLFOLDER" Order="6" />
+
+      <!-- Welcome, then the folder (no licence page). -->
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="InstallDirDlg" Order="2" Condition="NOT Installed" />
+      <Publish Dialog="InstallDirDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" Order="2" />
+      <!-- The folder, then the options, then Ready. -->
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="OptionsDlg" Order="5" Condition="WIXUI_DONTVALIDATEPATH OR WIXUI_INSTALLDIR_VALID=&quot;1&quot;" />
+      <Publish Dialog="OptionsDlg" Control="Back" Event="NewDialog" Value="InstallDirDlg" />
+      <Publish Dialog="OptionsDlg" Control="Next" Property="SHOWEDOPTIONS" Value="1" Order="1" />
+      <Publish Dialog="OptionsDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg" Order="2" />
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="OptionsDlg" Order="3" Condition="NOT Installed" />
+      <!-- Finish: start Nyatch if ticked. -->
+      <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="StartNyatch" Order="2" Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND NOT Installed" />
+    </UI>
+  </Package>
+</Wix>

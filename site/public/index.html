@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nyatch: a notch for Windows</title>
+  <meta name="description" content="Nyatch puts a notch at the top of your Windows screen for music, weather and quick tools, and a second one for apps, files, notes and chats.">
+  <meta property="og:title" content="Nyatch: a notch for Windows">
+  <meta property="og:description" content="Music, weather, your calendar and quick tools, in a notch at the top of the screen.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://nyatch.arkhins.com">
+  <meta name="theme-color" content="#0b0b0d">
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" href="/logo.png" type="image/png">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="top">
+    <div class="wrap">
+      <a class="brand" href="/"><img src="/logo.png" alt="" width="26" height="26">Nyatch</a>
+      <nav>
+        <a href="#features">Features</a>
+        <a href="#characters">Characters</a>
+        <a href="/releases">Releases</a>
+        <a class="keep" href="#download">Download</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="hero">
+      <div class="wrap">
+        <h1>A notch for <span>Windows</span>.</h1>
+        <p class="lead">Music, weather, your calendar and quick tools at the top of the screen. A second notch at the bottom for apps, files, your clipboard, notes and chats.</p>
+        <div class="actions">
+          <a class="button" href="{{DOWNLOAD_URL}}" {{DOWNLOAD_STATE}}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg>
+            {{DOWNLOAD_LABEL}}
+          </a>
+          <a class="button ghost" href="#features">See what it does</a>
+        </div>
+        <p class="meta">{{DOWNLOAD_META}}</p>
+
+        <div class="screen" aria-hidden="true">
+          <div class="notch">
+            <div class="player">
+              <div class="art"></div>
+              <div><b>Midnight Drive</b><span>Northern Lights</span></div>
+              <div class="wave"><i></i><i></i><i></i><i></i><i></i></div>
+            </div>
+            <div class="scrub"></div>
+            <div class="controls"><span>⏮</span><span>⏸</span><span>⏭</span></div>
+          </div>
+          <div class="second">
+            <svg class="paws" viewBox="0 0 24 24" fill="currentColor"><ellipse cx="8" cy="10" rx="3" ry="2.4"/><circle cx="5" cy="6.5" r="1.1"/><circle cx="7.2" cy="5" r="1.2"/><circle cx="9.6" cy="5" r="1.2"/><circle cx="11.6" cy="6.5" r="1.1"/><ellipse cx="16" cy="18" rx="3" ry="2.4"/><circle cx="13" cy="14.5" r="1.1"/><circle cx="15.2" cy="13" r="1.2"/><circle cx="17.6" cy="13" r="1.2"/><circle cx="19.6" cy="14.5" r="1.1"/></svg>
+            Mon 23 Nov · 10:41
+          </div>
+          <div class="taskbar"></div>
+        </div>
+      </div>
+    </div>
+
+    <section id="features">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="eyebrow">The top notch</div>
+          <h2>Hover it, and it opens.</h2>
+          <p>Closed, it shows the time, or what is playing. Open, it turns through its pages. Notices for the volume, brightness and the rest show under it, out of your way.</p>
+        </div>
+        <div class="grid">
+          <div class="feature"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><h3>Clock</h3><p>The time with seconds if you like, the date, and a line of your own above it.</p></div>
+          <div class="feature"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg></div><h3>Player and lyrics</h3><p>Any app that plays: cover, controls and a live wave. Lyrics in time with the song, word by word where they can be.</p></div>
+          <div class="feature"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 18a4.5 4.5 0 1 1 .9-8.9A6 6 0 0 1 19 11a3.5 3.5 0 0 1-.5 7Z"/></svg></div><h3>Weather</h3><p>Now and the next day, hour by hour, with today's high and low, wind, sunrise and sunset.</p></div>
+          <div class="feature"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></div><h3>Calendar</h3><p>The month at a glance, today marked.</p></div>
+          <div class="feature"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></svg></div><h3>Hardware</h3><p>Processor, graphics, memory, disk, and your upload and download speeds.</p></div>
+          <div class="feature"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h6l2 2h8v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/></svg></div><h3>File tray</h3><p>Drop files on the notch to keep them close; drag them out where you need them.</p></div>
+        </div>
+
+        <div class="section-head" style="margin-top: 64px">
+          <div class="eyebrow">The second notch</div>
+          <h2>Your everyday tools, one hover away.</h2>
+          <p>At the bottom of the screen, or wherever you place it. Each page has a letter: Ctrl + Alt + N, then the letter, opens it.</p>
+        </div>
+        <div class="grid">
+          <div class="feature"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></div><h3>Apps</h3><p>Pinned, open and recent apps, a click away.</p></div>
+          <div class="feature"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="3" width="8" height="4" rx="1"/><path d="M8 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/></svg></div><h3>Clipboard</h3><p>What you copied, pictures too, with pins for what you need again.</p></div>
+          <div class="feature"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg></div><h3>Notifications</h3><p>Everything Windows told you, in one list, with Do not disturb.</p></div>
+          <div class="feature"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1.1-4.6A8 8 0 1 1 21 12Z"/></svg></div><h3>Chats</h3><p>Claude, ChatGPT and Gemini, with your own keys, kept safe in Windows' Credential Manager.</p></div>
+          <div class="feature"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/></svg></div><h3>Focus</h3><p>A timer, a stopwatch and a pomodoro, with a sound when time is up.</p></div>
+          <div class="feature"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg></div><h3>Notes and to-dos</h3><p>Lists and notes that stay on this PC.</p></div>
+          <div class="feature"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m4 17 6-6-6-6M12 19h8"/></svg></div><h3>Terminal</h3><p>Command Prompt and PowerShell in tabs, right there.</p></div>
+          <div class="feature"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></div><h3>Online</h3><p>Ping, a speed test, and your sites with whether each one is up.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="characters">
+      <div class="wrap">
+        <div class="split">
+          <div class="panel">
+            <div class="eyebrow">Characters</div>
+            <h3>A little company, if you want it.</h3>
+            <p>Character packs add pictures and short animations to the open pages: one for each time of day, the weather, a busy PC, an empty tray, a chat that is thinking.</p>
+            <p>They are off until you turn them on. Packs are downloaded from the Characters page in Nyatch's settings, kept up to date on their own, and removed with one click.</p>
+          </div>
+          <div class="panel">
+            <div class="eyebrow">Made to fit in</div>
+            <h3>Looks like it belongs on Windows.</h3>
+            <ul>
+              <li>Mica and acrylic backdrops, your accent colour or the album's.</li>
+              <li>A pill, a Windows 11 shape or a true notch shape.</li>
+              <li>Hides for full-screen apps, and stays out of games unless you want its game overlay.</li>
+              <li>Folder sizes in File Explorer, if you turn it on.</li>
+              <li>Settings in the style of Windows' own settings apps.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="download" class="download">
+      <div class="wrap">
+        <div class="section-head">
+          <h2>Get Nyatch</h2>
+          <p>Free. Installs in a few seconds, and updates itself.</p>
+        </div>
+        <a class="button" href="{{DOWNLOAD_URL}}" {{DOWNLOAD_STATE}}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg>
+          {{DOWNLOAD_LABEL}}
+        </a>
+        <p class="meta">{{DOWNLOAD_META}}</p>
+        <div class="facts">
+          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>Windows 10 and 11, 64-bit</span>
+          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6Z"/><path d="m9 12 2 2 4-4"/></svg>Every update is signed and checked</span>
+          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Your settings stay on your PC</span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <span>© {{YEAR}} Arkhins</span>
+      <nav>
+        <a href="/releases">Releases</a>
+        <a href="mailto:arkhins@arkhins.com">Contact</a>
+        <a href="https://arkhins.com">arkhins.com</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,17 @@
+Nyatch
+Copyright 2026 Arkhins (https://arkhins.com)
+
+Nyatch was created and founded by Arkhins.
+This product is open source under the Apache License 2.0 (see LICENSE).
+This notice must be kept in every copy of Nyatch and in every work based on it
+that is passed on to others, shown wherever such a work shows its notices or
+credits (Apache License 2.0, section 4(d)).
+
+It includes third-party libraries, each under its own license.
+
+- Microsoft Detours 4.0.1, Copyright (c) Microsoft Corporation, MIT License
+  (native/third_party/Detours/LICENSE.md), used by File Explorer folder sizes.
+- File Explorer folder sizes include part of the Everything SDK by voidtools,
+  and query code based on SizeES, as noted in native/Nyatch.Explorer/explorer_sizes.cpp.
+
+Contact: arkhins@arkhins.com

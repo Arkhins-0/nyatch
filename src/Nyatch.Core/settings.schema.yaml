@@ -1,0 +1,710 @@
+- General:
+  - LaunchAtStartup: false
+    $name: Start with Windows
+    $description: ''
+  - SettingsTheme: system
+    $name: Theme of this window
+    $description: ''
+    $options:
+      - system: As Windows has it
+      - light: Light
+      - dark: Dark
+      - black: Black
+  $name: General
+- Appearance:
+  - Position: top-center
+    $name: Position
+    $description: ''
+    $options:
+      - top-center: Top centre
+      - top-left: Top left
+      - top-right: Top right
+      - bottom-center: Bottom centre
+      - bottom-left: Bottom left
+      - bottom-right: Bottom right
+  - TargetMonitor: primary
+    $name: Screen
+    $description: 'Falls back to the main screen.'
+    $options:
+      - 'primary': Main screen
+      - '1': Screen 1
+      - '2': Screen 2
+      - '3': Screen 3
+      - '4': Screen 4
+      - '5': Screen 5
+      - 'follow': The screen the pointer is on
+  - OffsetX: 0
+    $name: Horizontal offset
+    $description: ''
+  - OffsetY: 0
+    $name: Vertical offset
+    $description: ''
+  - SeparateExpandedOffsetY: false
+    $name: Separate offset when open
+    $description: ''
+  - OffsetYExpanded: 0
+    $name: Vertical offset when open
+    $description: ''
+  - BorderMergedMode: false
+    $name: Join the screen edge
+    $description: 'Part of the top edge of the screen.'
+  - ShapeStyle: notch
+    $name: Shape
+    $description: ''
+    $options:
+      - default: Pill
+      - w11: Windows 11 box
+      - notch: Notch
+  - ProgressStyle: slim
+    $name: Progress bar
+    $description: ''
+    $options:
+      - slim: Slim
+      - wavy: Wavy
+      - squiggle: Squiggle
+      - bar: Bar
+  - SpectrumStyle: bars
+    $name: Visualizer
+    $description: ''
+    $options:
+      - bars: Classic bars
+      - led: Peak matrix
+      - plasma: Plasma thread
+      - orb: Pulse orb
+  - TopPages: calendar,weather,hardware,tray
+    $name: Pages
+    $description: 'Which pages the top notch shows, and their order.'
+  - SizeScale: '1.0'
+    $name: Size
+    $description: ''
+    $options:
+      - '0.8': 0.8x
+      - '1.0': 1.0x
+      - '1.2': 1.2x
+      - '1.5': 1.5x
+      - '1.8': 1.8x
+      - '2.0': 2.0x
+      - '2.5': 2.5x
+  - AutoDpiScale: true
+    $name: Scale with the screen
+    $description: 'Best for 4K screens.'
+  $name: Appearance & Position
+- Behavior:
+  - AlwaysOnTop: true
+    $name: Always on top
+    $description: ''
+  - ExpandOnHover: true
+    $name: Open on hover
+    $description: 'Off: click to open.'
+  - AutoHideIdleSeconds: '0'
+    $name: Hide when idle
+    $description: ''
+    $options:
+      - '-1': At once
+      - '0': Never
+      - '5': After 5 seconds
+      - '10': After 10 seconds
+      - '30': After 30 seconds
+      - '60': After 60 seconds
+  - AutoHideFullscreen: true
+    $name: Hide on full screen
+    $description: ''
+  - UnhideOnHover: true
+    $name: Show again on hover
+    $description: ''
+  $name: Behavior & Visibility
+- Animations:
+  - TargetFPS: auto
+    $name: Frame rate
+    $description: 'Auto matches your screen.'
+    $options:
+      - auto: Auto
+      - '60': 60
+      - '90': 90
+      - '120': 120
+      - '144': 144
+      - '165': 165
+      - '240': 240
+      - '360': 360
+      - '500': 500
+  - AnimationStyle: default
+    $name: Spring
+    $description: ''
+    $options:
+      - smooth: Smooth
+      - default: Balanced
+      - bouncy: Bouncy
+      - snappy: Snappy
+  - AnimationSpeed: normal
+    $name: Speed
+    $description: ''
+    $options:
+      - very-slow: 0.5x
+      - slow: 0.75x
+      - normal: 1x
+      - fast: 1.35x
+      - very-fast: 1.65x
+      - ultra-fast: 2x
+  - ExpandedMediaTransitions: false
+    $name: Player transitions
+    $description: ''
+  - PillCoverSpin: false
+    $name: Cover spin
+    $description: ''
+  $name: Animations & Performance
+- Themes:
+  - ThemePreset: obsidian
+    $name: Theme
+    $description: ''
+    $options:
+      - obsidian: Obsidian (true black)
+      - graphite: Graphite (neutral dark)
+      - slate: Slate (cool blue-grey)
+      - nord: Nord (the Nord palette)
+      - evergreen: Evergreen (deep green)
+      - espresso: Espresso (warm brown)
+      - plum: Plum (muted mauve)
+      - porcelain: Porcelain (light)
+      - custom: Custom (your colours)
+  - PillOpacity: 96
+    $name: Opacity
+    $description: 'Lower is more see-through.'
+  - TintIntensity: 72
+    $name: Tint
+    $description: ''
+  - BackdropMaterial: none
+    $name: Backdrop
+    $description: ''
+    $options:
+      - none: Solid
+      - blur: Blur
+      - acrylic: Acrylic
+  - BackdropFillOpacity: 45
+    $name: Backdrop fill
+    $description: ''
+  - BackdropTint: 55
+    $name: Acrylic tint
+    $description: ''
+  - MaterialDepth: true
+    $name: Depth shading
+    $description: ''
+  - DropShadow: true
+    $name: Drop shadow
+    $description: ''
+  - AccentBloom: 100
+    $name: Accent glow
+    $description: '0 turns it off.'
+  - CoverTint: 0
+    $name: Cover tint
+    $description: ''
+  - TextScale: 100
+    $name: Text size
+    $description: ''
+  - AccentColorMode: auto
+    $name: Accent
+    $description: ''
+    $options:
+      - auto: Album cover
+      - system: Windows accent
+      - custom: Your colour
+  - CustomAccentHex: "#4cc9f0"
+    $name: Accent colour
+    $description: ''
+  - CalendarAccent: red
+    $name: Calendar accent
+    $description: ''
+    $options:
+      - red: Island accent
+      - system: Windows accent
+  - ClockAccentGlow: true
+    $name: Clock glow
+    $description: ''
+  - FontFamily: ""
+    $name: Font
+    $description: ''
+  - ContourBorderMode: default
+    $name: Outline
+    $description: ''
+    $options:
+      - default: Theme line
+      - auto: Album colour
+      - borderless: None
+  - ContourBorderHex: "#1E1E22"
+    $name: Outline colour
+    $description: ''
+  - PillBgColor: "#08080A"
+    $name: Background colour
+    $description: ''
+  - TextPrimaryColor: "#FFFFFF"
+    $name: Text colour
+    $description: ''
+  - TextSecondaryColor: "#9B9BA5"
+    $name: Muted text colour
+    $description: ''
+  $name: Colors & Theming
+- Indicators:
+  - PrivacyDots: true
+    $name: Mic and camera dots
+    $description: ''
+  - PrivacyDotsMic: true
+    $name: Microphone
+    $description: 'Turn off if an app keeps it on all day.'
+  - PrivacyDotsMicHex: "#FF9500"
+    $name: Microphone colour
+    $description: ''
+  - PrivacyDotsCam: true
+    $name: Camera
+    $description: ''
+  - PrivacyDotsCamHex: "#34C759"
+    $name: Camera colour
+    $description: ''
+  $name: Privacy Indicators
+- Modules:
+  - Media: true
+    $name: Now playing
+    $description: ''
+  - MediaAutoExpand: false
+    $name: Open on a new song
+    $description: ''
+  - MediaPillClock: false
+    $name: Clock beside the player
+    $description: ''
+  - Volume: true
+    $name: Volume
+    $description: ''
+  - Brightness: true
+    $name: Brightness
+    $description: 'Laptop screens.'
+  - CapsLock: true
+    $name: Caps Lock and Num Lock
+    $description: ''
+  - Battery: true
+    $name: Battery
+    $description: ''
+  - BluetoothIndicator: true
+    $name: Bluetooth devices
+    $description: ''
+  - BluetoothShowBattery: true
+    $name: Device battery
+    $description: ''
+  - Progress: true
+    $name: Downloads and copies
+    $description: ''
+  - TimerModule: true
+    $name: Focus timer
+    $description: 'From the right-click menu.'
+  - Clipboard: true
+    $name: Copied
+    $description: ''
+  - StatusCountdownProgress: false
+    $name: Countdown bar
+    $description: ''
+  - DoNotDisturbIndicator: true
+    $name: Do not disturb
+    $description: ''
+  - NotificationRespectDnD: true
+    $name: Quiet while Do not disturb is on
+    $description: ''
+  - GameOverlay: false
+    $name: Game overlay
+    $description: 'In place of the clock.'
+  - ShowMetricText: false
+    $name: Labels
+    $description: ''
+  - Weather: true
+    $name: Weather
+    $description: 'The Weather page needs it.'
+  - WeatherCity: ""
+    $name: City
+    $description: 'Empty finds it by itself.'
+  - WeatherFahrenheit: false
+    $name: Fahrenheit
+    $description: '°F and mph.'
+  - MediaTabLyrics: true
+    $name: Lyrics button in the player
+    $description: ''
+  - Lyrics: true
+    $name: Lyrics
+    $description: ''
+  - LyricsVisualizer: true
+    $name: Visualizer beside the title
+    $description: ''
+  - KaraokeLyrics: true
+    $name: Karaoke
+    $description: ''
+  - KaraokeLetterGlow: true
+    $name: Letter glow
+    $description: ''
+  - LyricsOffsetMs: 0
+    $name: Timing, speakers and wired
+    $description: 'Higher shows the words earlier.'
+  - LyricsOffsetBluetoothMs: 0
+    $name: Timing, Bluetooth
+    $description: ''
+  - LyricsNeighborLinesVisible: false
+    $name: Clear neighbouring lines
+    $description: ''
+  - LyricsSource: betterlyrics
+    $name: Where lyrics come from
+    $description: 'Better Lyrics times each word; LRCLIB has the rest.'
+    $options:
+      - betterlyrics: Better Lyrics, then LRCLIB
+      - lrclib: LRCLIB only
+  - LyricsCache: true
+    $name: Keep lyrics on this PC
+    $description: ''
+  - LyricsCacheMaxMB: '25'
+    $name: Space for lyrics
+    $description: ''
+    $options:
+      - '0': None
+      - '10': 10 MB
+      - '25': 25 MB
+      - '100': 100 MB
+  - Language: auto
+    $name: Language
+    $description: 'Auto follows Windows.'
+    $options:
+      - auto: Auto
+      - en: English
+      - fr: Français
+      - es: Español
+      - de: Deutsch
+      - pt: Português
+      - it: Italiano
+      - ru: Русский
+      - tr: Türkçe
+      - hi: हिन्दी
+      - zh: 简体中文
+      - ja: 日本語
+      - ko: 한국어
+  - ClockFormat: system
+    $name: Time format
+    $description: ''
+    $options:
+      - system: As Windows
+      - 12h: 12-hour
+      - 24h: 24-hour
+  - ShowSeconds: false
+    $name: Seconds
+    $description: ''
+  - DateStyle: default
+    $name: Date layout
+    $description: ''
+    $options:
+      - default: Usual layout
+      - ddd d MMM: Fri 20 Nov
+      - dddd d MMMM: Friday 20 November
+      - ddd, MMM d: Fri, Nov 20
+      - ddd d/M: Fri 20/11
+      - d MMM: 20 Nov
+      - dddd: Friday
+      - custom: Custom
+  - DateFormat: ""
+    $name: Custom layout
+    $description: 'Like ddd d MMM for Fri 20 Nov.'
+  - DateFirst: false
+    $name: Date above the time
+    $description: ''
+  - ClockNote: ""
+    $name: Your line
+    $description: ''
+  - FirstDayOfWeek: auto
+    $name: First day of the week
+    $description: ''
+    $options:
+      - auto: Auto
+      - monday: Monday
+      - sunday: Sunday
+  - QuickLookup: false
+    $name: Quick Lookup
+    $description: ''
+  - QuickLookupFiles: true
+    $name: Files and apps
+    $description: ''
+  - QuickLookupWeb: true
+    $name: Web rows
+    $description: 'Search the web, and ask Gemini.'
+  - Calculator: full
+    $name: Calculator
+    $description: 'Enter copies the answer.'
+    $options:
+      - full: Full
+      - simple: Simple
+      - off: Off
+  - FileTrayModule: false
+    $name: File tray in the top notch
+    $description: ''
+  - FileTrayMaxItems: 10
+    $name: Capacity
+    $description: '1 to 25.'
+  - FileTrayPersist: true
+    $name: Keep after a restart
+    $description: ''
+  - MediaExpandBlocklist: ""
+    $name: Never open for
+    $description: 'Separated by commas.'
+  - GameOverlayShowFps: true
+    $name: FPS
+    $description: ''
+  - GameOverlayShowCpu: true
+    $name: CPU
+    $description: ''
+  - GameOverlayShowGpu: true
+    $name: GPU
+    $description: ''
+  - GameOverlayShowRam: true
+    $name: Memory
+    $description: ''
+  - GameOverlayShowDisk: true
+    $name: Disk
+    $description: ''
+  - GameOverlayCompact: false
+    $name: Compact
+    $description: 'Fits beside the taskbar.'
+  $name: Modules & Features
+- Shortcuts:
+  - HideShowHotkeyEnabled: true
+    $name: Hide or show the top notch
+    $description: ''
+  - HideShowModifiers: ctrl_alt
+    $name: Hide or show, held keys
+    $description: 'Keys held with the key, joined by _ (ctrl, alt, shift, win).'
+  - HideShowKey: "D"
+    $name: Hide or show, key
+    $description: 'One letter, number, Space or F1 to F12.'
+  - LookupModifiers: ctrl_alt
+    $name: Quick Lookup, held keys
+    $description: 'Keys held with the key, joined by _ (ctrl, alt, shift, win).'
+  - LookupKey: "Space"
+    $name: Quick Lookup, key
+    $description: 'One letter, number, Space or F1 to F12.'
+  - DeckHotkeyEnabled: true
+    $name: Open a page of the second notch
+    $description: ''
+  - DeckModifiers: ctrl_alt
+    $name: Second notch, held keys
+    $description: 'Keys held with the key, joined by _ (ctrl, alt, shift, win).'
+  - DeckKey: "N"
+    $name: Second notch, key
+    $description: 'One letter, number, Space or F1 to F12.'
+  - SideHotkeyEnabled: true
+    $name: Open or close the LLM panel
+    $description: ''
+  - SideModifiers: ctrl_alt
+    $name: LLM panel, held keys
+    $description: 'Keys held with the key, joined by _ (ctrl, alt, shift, win).'
+  - SideKey: "A"
+    $name: LLM panel, key
+    $description: 'One letter, number, Space or F1 to F12.'
+  $name: Shortcuts & Hotkeys
+- Assistant:
+  - ClaudeModel: claude-opus-5-5
+    $name: Claude model
+    $description: ''
+  - ChatGptModel: gpt-6-astra
+    $name: ChatGPT model
+    $description: ''
+  - GeminiModel: gemini-flash-lite-latest
+    $name: Gemini model
+    $description: ''
+  - DeepSeekModel: deepseek-chat
+    $name: DeepSeek model
+    $description: ''
+  - MistralModel: ministral-8b-2512
+    $name: Mistral model
+    $description: ''
+  - GrokModel: grok-4
+    $name: Grok model
+    $description: ''
+  - GroqModel: llama-3.3-70b-versatile
+    $name: Groq model
+    $description: ''
+  - PerplexityModel: sonar
+    $name: Perplexity model
+    $description: ''
+  - OpenRouterModel: openrouter/auto
+    $name: OpenRouter model
+    $description: ''
+  - KeepHistory: true
+    $name: Keep conversations
+    $description: ''
+  - Prompt: 'Your replies are shown in a chat panel that renders Markdown: headings, bold, lists, code fences and tables show as they should. HTML is not shown.'
+    $name: Prompt
+    $description: 'What every LLM is told before your question. Reset brings back Nyatch''s.'
+  - Instructions: ""
+    $name: Your instructions
+    $description: 'Added after the prompt, with every question.'
+  $name: Assistant
+- Deck:
+  - Enabled: true
+    $name: Second notch
+    $description: ''
+  - Position: bottom-center
+    $name: Position
+    $description: ''
+    $options:
+      - top-center: Top centre
+      - top-left: Top left
+      - top-right: Top right
+      - bottom-center: Bottom centre
+      - bottom-left: Bottom left
+      - bottom-right: Bottom right
+  - OffsetX: 0
+    $name: Horizontal offset
+    $description: ''
+  - OffsetY: 0
+    $name: Vertical offset
+    $description: ''
+  - ExpandOnHover: true
+    $name: Open on hover
+    $description: 'Off: click to open.'
+  - AlwaysOnTop: true
+    $name: Always on top
+    $description: ''
+  - Pages: apps,tray,clipboard,notifications,claude,chatgpt,gemini,focus,notes,terminal,online
+    $name: Pages
+    $description: 'Which pages the second notch shows, and their order.'
+  - PageKeys: apps=A,tray=F,clipboard=V,notifications=B,claude=C,chatgpt=P,gemini=G,focus=T,notes=N,terminal=R,online=O
+    $name: Page letters
+    $description: 'The letter that opens each page after the hotkey.'
+  - Shows: date
+    $name: Text
+    $description: ''
+    $options:
+      - date: Date
+      - time: Time
+      - date-time: Date, then time
+      - time-date: Time, then date
+  - Emoji: paws
+    $name: Emoji
+    $description: ''
+  - AppsPinned: true
+    $name: Pinned apps
+    $description: ''
+  - AppsRecent: true
+    $name: Recent apps
+    $description: ''
+  - AppsRecentCount: 14
+    $name: How many
+    $description: '1 to 30.'
+  - ClipboardRemember: true
+    $name: Remember what is copied
+    $description: ''
+  - ClipboardKept: 40
+    $name: Items kept
+    $description: 'Pinned items not counted.'
+  - ClipboardPictures: true
+    $name: Pictures
+    $description: ''
+  - TimerMinutes: 10
+    $name: Timer length
+    $description: ''
+  - PomodoroFocus: 25
+    $name: Focus turn
+    $description: ''
+  - PomodoroBreak: 5
+    $name: Short break
+    $description: ''
+  - PomodoroLongBreak: 15
+    $name: Long break
+    $description: ''
+  - PomodoroRounds: 4
+    $name: Turns before a long break
+    $description: ''
+  - FocusSound: true
+    $name: Sound
+    $description: ''
+  - FocusNotify: true
+    $name: Notification
+    $description: ''
+  - TerminalShell: cmd
+    $name: Shell
+    $description: 'The + button opens either.'
+    $options:
+      - cmd: Command Prompt
+      - powershell: PowerShell
+  - TerminalFolder: ""
+    $name: Starting folder
+    $description: 'Empty: your user folder.'
+  - PingHost: "1.1.1.1"
+    $name: Ping address
+    $description: ''
+  $name: Second notch
+- Side:
+  - Enabled: true
+    $name: LLM panel
+    $description: 'Chat with Claude, ChatGPT, Gemini and the other LLMs in a panel that slides in from the edge of the screen.'
+  - Edge: right
+    $name: Edge
+    $description: ''
+    $options:
+      - right: Right
+      - left: Left
+  - Height: '75'
+    $name: Height
+    $description: 'Of the screen, when open.'
+    $options:
+      - '25': A quarter
+      - '50': Half
+      - '75': Three quarters
+      - '100': Full
+  - Anchor: bottom
+    $name: Position on the edge
+    $description: ''
+    $options:
+      - top: Top
+      - center: Centre
+      - bottom: Bottom
+  $name: LLM panel
+- Explorer:
+  - Enabled: false
+    $name: Folder sizes in File Explorer
+    $description: ''
+  - FolderSizes: shift
+    $name: Work out folder sizes
+    $description: 'Big folders take a moment.'
+    $options:
+      - off: Never
+      - shift: While Shift is held
+      - always: Always
+      - everything: From Everything (instant)
+  - MixFoldersWhenSorting: false
+    $name: Sort folders among files
+    $description: ''
+  - SizeUnits: mbgb
+    $name: Units
+    $description: ''
+    $options:
+      - windows: As Windows (always KB)
+      - mbgb: MB and GB for large files
+      - kb: Always KB, also for folders
+  - IecUnits: false
+    $name: KiB, MiB and GiB
+    $description: ''
+  $name: File Explorer
+- Characters:
+  - Enabled: false
+    $name: Theme
+    $description: 'Its pictures on the open pages of the notches.'
+  - Pack: ''
+    $name: Theme in use
+    $description: ''
+  - UseAccent: true
+    $name: Use the theme's colour
+    $description: 'The notches take the theme''s accent colour while it is in use.'
+  - UseFont: true
+    $name: Use the theme's font
+    $description: 'The notches write in the theme''s font while it is in use, if it has one.'
+  - AutoUpdate: true
+    $name: Keep themes up to date
+    $description: 'Newer versions of the themes on this PC are installed by themselves.'
+  $name: Theme
+- Updates:
+  - AutoCheck: true
+    $name: Check for updates
+    $description: 'Every few hours.'
+  - AutoInstall: true
+    $name: Install by itself
+    $description: 'When the PC is idle.'
+  $name: Updates
