@@ -61,7 +61,8 @@ async function github(path, accept = 'application/vnd.github+json') {
   const response = await fetch(`https://api.github.com/repos/${REPO}${path}`, {
     headers: {
       Accept: accept,
-      Authorization: `Bearer ${TOKEN}`,
+      // The repository is public: a token is not needed, only allowed (it raises GitHub's limit).
+      ...(TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {}),
       'User-Agent': 'nyatch-site-build',
       'X-GitHub-Api-Version': '2022-11-28',
     },
@@ -79,14 +80,9 @@ await cp('public', OUT, { recursive: true });
 await cp('characters', `${OUT}/characters`, { recursive: true });
 
 // ---------- The releases ----------
-let releases = [];
-if (TOKEN) {
-  // A failure here stops the build, so the site already online (with its release) stays up rather
-  // than one telling every installed copy there is nothing to update to.
-  releases = (await (await github('/releases?per_page=30')).json()).filter((r) => !r.draft && !r.prerelease);
-} else {
-  console.warn('No GITHUB_TOKEN: built without releases (a preview).');
-}
+// A failure here stops the build, so the site already online (with its release) stays up rather
+// than one telling every installed copy there is nothing to update to.
+const releases = (await (await github('/releases?per_page=30')).json()).filter((r) => !r.draft && !r.prerelease);
 
 let installer = null;
 // The setup program (.exe); a release from before it came as an .msi.
