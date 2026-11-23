@@ -138,7 +138,9 @@ if ($Exe) {
         }
 
         $tag = "v$Version"
-        gh release view $tag --repo $ReleaseRepo *> $null
+        # Through cmd: "release not found" (the answer hoped for) would otherwise stop this script, as
+        # Windows PowerShell takes a program's error text as an error.
+        cmd /c "gh release view $tag --repo $ReleaseRepo >nul 2>&1"
         if ($LASTEXITCODE -eq 0) { throw "$ReleaseRepo already has a release $tag. Raise the version in version.txt first." }
         if ($Notes.Trim().Length -eq 0) { $Notes = "Nyatch $Version." }
         gh release create $tag @files --repo $ReleaseRepo --title "Nyatch $Version" --notes $Notes
