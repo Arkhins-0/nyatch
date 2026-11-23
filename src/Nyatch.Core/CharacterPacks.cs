@@ -120,6 +120,9 @@ public sealed partial class CharacterPacks
 
     // ---------- On this PC ----------
 
+    /// <summary>How long an unpacking folder sits untouched before it counts as left over.</summary>
+    private static readonly TimeSpan LeftoverAge = TimeSpan.FromMinutes(10);
+
     /// <summary>The packs installed, by name.</summary>
     public IReadOnlyList<CharacterPack> Installed()
     {
@@ -131,8 +134,9 @@ public sealed partial class CharacterPacks
             if (id == ".cache") continue;
             if (id.StartsWith('.'))
             {
-                // Left over from an install that was cut short.
-                TryDelete(folder);
+                // Left over from an install that was cut short, once nothing has written to it for a while:
+                // an install still going on is writing into its folder, and must not lose what it wrote.
+                if (DateTime.UtcNow - Directory.GetLastWriteTimeUtc(folder) > LeftoverAge) TryDelete(folder);
                 continue;
             }
             if (IsPlainName(id) && ReadManifest(Path.Combine(folder, "pack.json")) is { } pack && pack.Id == id) found.Add(pack);

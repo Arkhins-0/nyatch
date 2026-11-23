@@ -33,6 +33,21 @@ public sealed class CharacterPacksTests : IDisposable
     private CharacterPacks Packs => new(Path.Combine(_root, "installed"), Home);
 
     [Fact]
+    public void ListingThePacksLeavesAnInstallGoingOnAlone()
+    {
+        // A pack being unpacked (its folder still written to) keeps what it has; one left over long ago goes.
+        var installed = Path.Combine(_root, "installed");
+        var going = Directory.CreateDirectory(Path.Combine(installed, ".incoming-now")).FullName;
+        File.WriteAllBytes(Path.Combine(going, "about.png"), Png);
+        var left = Directory.CreateDirectory(Path.Combine(installed, ".incoming-old")).FullName;
+        Directory.SetLastWriteTimeUtc(left, DateTime.UtcNow.AddHours(-1));
+
+        Assert.Empty(Packs.Installed());
+        Assert.True(File.Exists(Path.Combine(going, "about.png")));
+        Assert.False(Directory.Exists(left));
+    }
+
+    [Fact]
     public async Task APackIsMadeListedDownloadedAndDeleted()
     {
         var listed = CharacterPacks.Make(PackFolder(), Home);
