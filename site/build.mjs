@@ -85,7 +85,7 @@ await cp('characters', `${OUT}/characters`, { recursive: true });
 const releases = (await (await github('/releases?per_page=30')).json()).filter((r) => !r.draft && !r.prerelease);
 
 let installer = null;
-// The setup program (.exe); a release from before it came as an .msi.
+// A release with an installer: the MSI, the setup .exe, or both.
 const latest = releases.find((r) => r.assets.some((a) => /\.(exe|msi)$/i.test(a.name)));
 if (latest) {
   const folder = `${OUT}/releases/${latest.tag_name}`;
@@ -97,7 +97,8 @@ if (latest) {
     assets.push({ name: asset.name, size: file.length, browser_download_url: `${SITE}/releases/${latest.tag_name}/${asset.name}` });
     console.log(`${asset.name}: ${megabytes(file.length)}`);
   }
-  installer = assets.find((a) => /\.exe$/i.test(a.name)) ?? assets.find((a) => /\.msi$/i.test(a.name));
+  // The download button gives the MSI (the setup .exe is in the release too, and the updater uses it).
+  installer = assets.find((a) => /\.msi$/i.test(a.name)) ?? assets.find((a) => /\.exe$/i.test(a.name));
   await writeFile(
     `${OUT}/releases/latest.json`,
     JSON.stringify(
