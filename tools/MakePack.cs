@@ -7,8 +7,8 @@
 //
 //   dotnet run tools\MakePack.cs -- <pack folder> <home folder>
 //
-// The pack folder holds pack.json (id, name, version, author, licence, description), preview.png (or
-// preview.gif: the cover shown before downloading), LICENSE.txt, and the pictures, each named for the
+// The theme folder holds pack.json (id, name, version, author, description, accent, font), preview.png (or
+// preview.gif: the cover shown before downloading), its font if it has one, and the pictures, each named for the
 // moment it is shown in (idle.gif, time-morning.png...). The home folder is the "characters" branch as
 // checked out (or any folder, to try a pack): the tool writes packs\<id>.nyatch and previews\<id>.png
 // there and adds the pack to its index.json, which is the list Nyatch shows.
