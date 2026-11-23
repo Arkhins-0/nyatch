@@ -89,18 +89,19 @@ if (TOKEN) {
 }
 
 let installer = null;
-const latest = releases.find((r) => r.assets.some((a) => /\.msi$/i.test(a.name)));
+// The setup program (.exe); a release from before it came as an .msi.
+const latest = releases.find((r) => r.assets.some((a) => /\.(exe|msi)$/i.test(a.name)));
 if (latest) {
   const folder = `${OUT}/releases/${latest.tag_name}`;
   await mkdir(folder, { recursive: true });
   const assets = [];
-  for (const asset of latest.assets.filter((a) => /\.msi(\.sha256|\.sig)?$/i.test(a.name) && /^[A-Za-z0-9._-]+$/.test(a.name))) {
+  for (const asset of latest.assets.filter((a) => /\.(exe|msi)(\.sha256|\.sig)?$/i.test(a.name) && /^[A-Za-z0-9._-]+$/.test(a.name))) {
     const file = Buffer.from(await (await github(`/releases/assets/${asset.id}`, 'application/octet-stream')).arrayBuffer());
     await writeFile(`${folder}/${asset.name}`, file);
     assets.push({ name: asset.name, size: file.length, browser_download_url: `${SITE}/releases/${latest.tag_name}/${asset.name}` });
     console.log(`${asset.name}: ${megabytes(file.length)}`);
   }
-  installer = assets.find((a) => /\.msi$/i.test(a.name));
+  installer = assets.find((a) => /\.exe$/i.test(a.name)) ?? assets.find((a) => /\.msi$/i.test(a.name));
   await writeFile(
     `${OUT}/releases/latest.json`,
     JSON.stringify(

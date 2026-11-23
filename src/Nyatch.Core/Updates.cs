@@ -48,7 +48,9 @@ public static partial class Updates
                 .Select(a => (Name: Text(a, "name"), Url: Text(a, "browser_download_url")))
                 .Where(a => a.Name.Length > 0 && Uri.TryCreate(a.Url, UriKind.Absolute, out var u) && u.Scheme == "https")
                 .ToList();
-            var installer = files.FirstOrDefault(f => f.Name.EndsWith(".msi", StringComparison.OrdinalIgnoreCase));
+            // The setup program (an .exe); a release from before it came as an .msi.
+            var installer = files.FirstOrDefault(f => f.Name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase));
+            if (installer.Name is null) installer = files.FirstOrDefault(f => f.Name.EndsWith(".msi", StringComparison.OrdinalIgnoreCase));
             if (installer.Name is null) return null;
             var checksum = files.FirstOrDefault(f => f.Name.Equals(installer.Name + ".sha256", StringComparison.OrdinalIgnoreCase));
             var signature = files.FirstOrDefault(f => f.Name.Equals(installer.Name + ".sig", StringComparison.OrdinalIgnoreCase));
@@ -82,7 +84,7 @@ public static partial class Updates
 
     /// <summary>A safe file name for a download: the release's own name if it is a plain one.</summary>
     public static string SafeFileName(string name) =>
-        SafeName().IsMatch(name) ? name : "Nyatch-update.msi";
+        SafeName().IsMatch(name) ? name : name.EndsWith(".msi", StringComparison.OrdinalIgnoreCase) ? "Nyatch-update.msi" : "Nyatch-update.exe";
 
     private static bool Bool(JsonElement item, string name) => item.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.True;
 
@@ -91,5 +93,5 @@ public static partial class Updates
 
     [GeneratedRegex(@"\d+(\.\d+){1,2}")] private static partial Regex VersionText();
     [GeneratedRegex(@"^([0-9a-fA-F]{64})(?:\s+(.*))?$")] private static partial Regex ChecksumLine();
-    [GeneratedRegex(@"^[A-Za-z0-9._-]{1,100}\.msi$")] private static partial Regex SafeName();
+    [GeneratedRegex(@"^[A-Za-z0-9._-]{1,100}\.(exe|msi)$", RegexOptions.IgnoreCase)] private static partial Regex SafeName();
 }

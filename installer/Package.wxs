@@ -1,5 +1,5 @@
 <!--
-  The Nyatch installer (WiX 5). Built by ..\build.ps1 -Msi, which publishes the app and writes the
+  The Nyatch installer (WiX 5). Built by ..\build.ps1 -Exe, which publishes the app and writes the
   file list (AppFiles.wxs) first.
 
   Pages: Welcome, Install folder, Options (start with Windows, automatic updates, desktop shortcut),

@@ -259,7 +259,13 @@ internal sealed class Updater
             var log = Path.Combine(Folder, "install.log");
             // Nyatch is installed for the whole PC, so the installer needs administrator rights: Windows
             // asks (its usual prompt), then it runs without any more questions.
-            var installer = Process.Start(new ProcessStartInfo("msiexec.exe", $"/i \"{_readyFile}\" /qn /norestart /l*v \"{log}\"") { UseShellExecute = true, Verb = "runas" });
+            // The setup program runs itself; an .msi (a release from before it) through msiexec.
+            var start = _readyFile.EndsWith(".msi", StringComparison.OrdinalIgnoreCase)
+                ? new ProcessStartInfo("msiexec.exe", $"/i \"{_readyFile}\" /qn /norestart /l*v \"{log}\"")
+                : new ProcessStartInfo(_readyFile, $"/quiet /norestart /log \"{log}\"");
+            start.UseShellExecute = true;
+            start.Verb = "runas";
+            var installer = Process.Start(start);
             // The new version is started again as you, not as administrator: a hidden helper waits for
             // the installer to finish and then opens Nyatch.
             if (installer is not null && Environment.ProcessPath is { } exe)

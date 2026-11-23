@@ -2,7 +2,7 @@
 #   .\build.ps1            Release build
 #   .\build.ps1 -Run       build, then start the app
 #   .\build.ps1 -Test      build, then run the tests
-#   .\build.ps1 -Msi       build, then make the installer: out\Nyatch-<version>.msi
+#   .\build.ps1 -Exe       build, then make the installer: out\Nyatch-Setup-<version>.exe (the .msi inside it)
 #   .\build.ps1 -Release   make the installer, sign it and publish it as a release of the (private)
 #                          repository; nyatch.arkhins.com is then rebuilt from it and serves it
 #                          (version from version.txt; notes with -Notes "..."; NYATCH_DEPLOY_HOOK, a
@@ -11,7 +11,7 @@ param(
     [ValidateSet("Debug", "Release")] [string]$Configuration = "Release",
     [switch]$Run,
     [switch]$Test,
-    [switch]$Msi,
+    [switch]$Exe,
     [switch]$Release,
     [string]$Notes = "",
     [string]$ReleaseRepo = "Arkhins-0/nyatch",
@@ -19,7 +19,7 @@ param(
 )
 $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
-if ($Release) { $Msi = $true }
+if ($Release) { $Exe = $true }
 
 # The C++ library needs Visual Studio's MSBuild (with the C++ desktop workload).
 $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
@@ -47,7 +47,7 @@ if ($Test) {
     if ($LASTEXITCODE -ne 0) { throw "Tests failed." }
 }
 
-if ($Msi) {
+if ($Exe) {
     # The app with its own copy of .NET, so it runs on a PC that does not have .NET 10.
     $publish = Join-Path $root "out\publish"
     if (Test-Path $publish) { Remove-Item $publish -Recurse -Force }
@@ -95,7 +95,7 @@ if ($Msi) {
     # WiX is a tool of this project (dotnet-tools.json), with its extensions in installer\.wix
     # (not in the repository: fetched here the first time).
     dotnet tool restore | Out-Null
-    foreach ($extension in "WixToolset.UI.wixext", "WixToolset.Util.wixext") {
+    foreach ($extension in "WixToolset.UI.wixext", "WixToolset.Util.wixext", "WixToolset.Bal.wixext") {
         if (-not (Test-Path (Join-Path $root "installer\.wix\extensions\$extension"))) {
             Push-Location (Join-Path $root "installer")
             try { dotnet wix extension add "$extension/5.0.2" | Out-Null } finally { Pop-Location }
@@ -109,25 +109,39 @@ if ($Msi) {
             -d "BrandDir=$(Join-Path $root 'assets\brand')" -ext WixToolset.UI.wixext `
             -o $msiPath
         if ($LASTEXITCODE -ne 0) { throw "The installer did not build." }
+        # The setup program people download: the MSI inside an .exe (Bundle.wxs).
+        $setupPath = Join-Path $root "out\Nyatch-Setup-$Version.exe"
+        # (Its extension's DLL has another name than its package: it is named in full.)
+        $bal = Join-Path $root "installer\.wix\extensions\WixToolset.Bal.wixext\5.0.2\wixext5\WixToolset.BootstrapperApplications.wixext.dll"
+        dotnet wix build Bundle.wxs -arch x64 -ext $bal `
+            -d "Version=$Version" -d "MsiFile=$msiPath" -d "IconFile=$(Join-Path $root 'src\Nyatch.App\nyatch.ico')" `
+            -o $setupPath
+        if ($LASTEXITCODE -ne 0) { throw "The setup program did not build." }
     }
     finally {
         Pop-Location
     }
-    Write-Host "Installer: $msiPath"
+    Write-Host "Installer: $setupPath"
 
     if ($Release) {
         # The checksum, and the signature that installed copies check before updating (tools\ReleaseSigning.cs).
-        $hash = (Get-FileHash $msiPath -Algorithm SHA256).Hash.ToLowerInvariant()
-        $name = Split-Path $msiPath -Leaf
-        [System.IO.File]::WriteAllText("$msiPath.sha256", "$hash  $name`n", (New-Object System.Text.UTF8Encoding $false))
-        dotnet run (Join-Path $root "tools\ReleaseSigning.cs") -- sign $msiPath $Version
-        if ($LASTEXITCODE -ne 0) { throw "The installer could not be signed." }
+        # The setup program for downloads, and the MSI too: copies from before the setup program (1.0.0)
+        # update only from an .msi.
+        $files = @()
+        foreach ($file in $setupPath, $msiPath) {
+            $hash = (Get-FileHash $file -Algorithm SHA256).Hash.ToLowerInvariant()
+            $name = Split-Path $file -Leaf
+            [System.IO.File]::WriteAllText("$file.sha256", "$hash  $name`n", (New-Object System.Text.UTF8Encoding $false))
+            dotnet run (Join-Path $root "tools\ReleaseSigning.cs") -- sign $file $Version
+            if ($LASTEXITCODE -ne 0) { throw "The installer could not be signed." }
+            $files += $file, "$file.sha256", "$file.sig"
+        }
 
         $tag = "v$Version"
         gh release view $tag --repo $ReleaseRepo *> $null
         if ($LASTEXITCODE -eq 0) { throw "$ReleaseRepo already has a release $tag. Raise the version in version.txt first." }
         if ($Notes.Trim().Length -eq 0) { $Notes = "Nyatch $Version." }
-        gh release create $tag $msiPath "$msiPath.sha256" "$msiPath.sig" --repo $ReleaseRepo --title "Nyatch $Version" --notes $Notes
+        gh release create $tag @files --repo $ReleaseRepo --title "Nyatch $Version" --notes $Notes
         if ($LASTEXITCODE -ne 0) { throw "The release was not published." }
         Write-Host "Published Nyatch $Version to https://github.com/$ReleaseRepo/releases/tag/$tag"
         # The site serves it once it is rebuilt.

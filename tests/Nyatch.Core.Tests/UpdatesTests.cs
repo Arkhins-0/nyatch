@@ -64,6 +64,23 @@ public class UpdatesTests
     }
 
     [Fact]
+    public void PrefersTheSetupProgram()
+    {
+        const string json = """
+            {"tag_name":"v1.3.0","assets":[
+               {"name":"Nyatch-1.3.0.msi","browser_download_url":"https://x/Nyatch-1.3.0.msi"},
+               {"name":"Nyatch-Setup-1.3.0.exe","browser_download_url":"https://x/Nyatch-Setup-1.3.0.exe"},
+               {"name":"Nyatch-Setup-1.3.0.exe.sha256","browser_download_url":"https://x/Nyatch-Setup-1.3.0.exe.sha256"},
+               {"name":"Nyatch-Setup-1.3.0.exe.sig","browser_download_url":"https://x/Nyatch-Setup-1.3.0.exe.sig"}
+             ]}
+            """;
+        var release = Updates.Parse(json)!;
+        Assert.Equal("Nyatch-Setup-1.3.0.exe", release.InstallerName);
+        Assert.EndsWith(".exe.sha256", release.Checksum!.AbsolutePath);
+        Assert.EndsWith(".exe.sig", release.Signature!.AbsolutePath);
+    }
+
+    [Fact]
     public void SkipsReleasesItCannotUse()
     {
         Assert.Null(Updates.Parse("""{"tag_name":"v1.0.0","assets":[]}"""));
@@ -89,5 +106,7 @@ public class UpdatesTests
     {
         Assert.Equal("Nyatch-1.2.0.msi", Updates.SafeFileName("Nyatch-1.2.0.msi"));
         Assert.Equal("Nyatch-update.msi", Updates.SafeFileName(@"..\evil.msi"));
+        Assert.Equal("Nyatch-Setup-1.3.0.exe", Updates.SafeFileName("Nyatch-Setup-1.3.0.exe"));
+        Assert.Equal("Nyatch-update.exe", Updates.SafeFileName(@"..\evil.exe"));
     }
 }

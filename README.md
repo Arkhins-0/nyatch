@@ -66,7 +66,7 @@ You need Visual Studio 2022 with "Desktop development with C++" and the .NET 10 
 .\build.ps1          # build
 .\build.ps1 -Run     # build and start
 .\build.ps1 -Test    # build and run the tests
-.\build.ps1 -Msi     # build the installer: out\Nyatch-<version>.msi
+.\build.ps1 -Exe     # build the installer: out\Nyatch-Setup-<version>.exe
 ```
 
 | Folder | What is in it |
@@ -76,7 +76,7 @@ You need Visual Studio 2022 with "Desktop development with C++" and the .NET 10 
 | `src/Nyatch.App` | The app: settings window, the second notch's pages (C#, WPF) |
 | `src/Nyatch.Core` | Settings, history, updates and assistant clients (C#) |
 | `tests/Nyatch.Core.Tests` | Tests for the core |
-| `installer` | The MSI (WiX) |
+| `installer` | The setup program (WiX): the MSI, and the .exe it comes in |
 
 ## Feedback
 
