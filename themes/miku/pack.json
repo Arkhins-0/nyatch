@@ -1,0 +1,9 @@
+{
+  "id": "miku",
+  "name": "Miku",
+  "version": "1.0",
+  "author": "Arkhins",
+  "description": "Chibi Hatsune Miku stickers and GIFs, for every moment of the day.",
+  "minApp": "1.0.0",
+  "accent": "#39C5BB"
+}
