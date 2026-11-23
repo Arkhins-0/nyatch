@@ -1,3 +1,8 @@
 dist/
 node_modules/
 .vercel/
+
+# Settings with real values: never in git (.env.example lists the names).
+.env
+.env.local
+.env.*.local
