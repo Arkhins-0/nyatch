@@ -1,23 +1,24 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "installCommand": "",
   "buildCommand": "node build.mjs",
   "outputDirectory": "dist",
   "cleanUrls": true,
   "trailingSlash": false,
+  "functions": {
+    "api/page.js": { "includeFiles": "public/*.html" }
+  },
+  "rewrites": [
+    { "source": "/", "destination": "/api/page?name=index" },
+    { "source": "/releases", "destination": "/api/page?name=releases" },
+    { "source": "/download", "destination": "/api/download" },
+    { "source": "/releases/latest.json", "destination": "/api/latest" },
+    { "source": "/releases/:tag/:file", "destination": "/api/file?tag=:tag&file=:file" }
+  ],
   "headers": [
-    {
-      "source": "/releases/latest.json",
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }]
-    },
     {
       "source": "/characters/index.json",
       "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }]
-    },
-    {
-      "source": "/releases/(.*)\\.msi",
-      "headers": [{ "key": "Content-Type", "value": "application/x-msi" }]
     },
     {
       "source": "/characters/packs/(.*)",

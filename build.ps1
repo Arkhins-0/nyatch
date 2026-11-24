@@ -3,10 +3,10 @@
 #   .\build.ps1 -Run       build, then start the app
 #   .\build.ps1 -Test      build, then run the tests
 #   .\build.ps1 -Exe       build, then make the installer: out\Nyatch-Setup-<version>.exe (the .msi inside it)
-#   .\build.ps1 -Release   make the installer, sign it and publish it as a release of the (private)
-#                          repository; nyatch.arkhins.com is then rebuilt from it and serves it
-#                          (version from version.txt; notes with -Notes "..."; NYATCH_DEPLOY_HOOK, a
-#                          Vercel deploy hook, rebuilds the site at once)
+#   .\build.ps1 -Release   make the installer, sign it, publish it as a GitHub release, and put it on
+#                          nyatch.arkhins.com (files to Cloudflare R2, the release to Neon; keys from
+#                          site\.env.local), which serves it at once (version from version.txt;
+#                          notes with -Notes "...")
 param(
     [ValidateSet("Debug", "Release")] [string]$Configuration = "Release",
     [switch]$Run,
@@ -146,14 +146,16 @@ if ($Exe) {
         gh release create $tag @files --repo $ReleaseRepo --title "Nyatch $Version" --notes $Notes
         if ($LASTEXITCODE -ne 0) { throw "The release was not published." }
         Write-Host "Published Nyatch $Version to https://github.com/$ReleaseRepo/releases/tag/$tag"
-        # The site serves it once it is rebuilt.
-        if ($env:NYATCH_DEPLOY_HOOK) {
-            Invoke-RestMethod -Method Post -Uri $env:NYATCH_DEPLOY_HOOK | Out-Null
-            Write-Host "nyatch.arkhins.com is being rebuilt with it."
+        # The site: the files to Cloudflare R2, the release to Neon (keys from site\.env.local). It serves
+        # the release at once, with no rebuild.
+        $site = Join-Path $root "site"
+        if (-not (Test-Path (Join-Path $site "node_modules"))) {
+            Push-Location $site
+            try { npm ci --no-audit --no-fund; if ($LASTEXITCODE -ne 0) { throw "The site's packages did not install." } }
+            finally { Pop-Location }
         }
-        else {
-            Write-Host "Redeploy nyatch.arkhins.com in Vercel to serve it (or set NYATCH_DEPLOY_HOOK to do it here)."
-        }
+        node (Join-Path $site "tools\publish-release.mjs") --tag $tag --name "Nyatch $Version" --notes $Notes @files
+        if ($LASTEXITCODE -ne 0) { throw "The release is on GitHub but not on the site. Run site\tools\publish-release.mjs again with the same files." }
     }
 }
 

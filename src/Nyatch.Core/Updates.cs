@@ -7,8 +7,8 @@ namespace Nyatch.Core;
 public sealed record Release(Version Version, string Tag, string Name, string Notes, Uri Installer, string InstallerName, Uri? Checksum, Uri Page, Uri? Signature = null);
 
 /// <summary>
-/// Reads Nyatch's releases, as nyatch.arkhins.com lists them (in the shape GitHub's API gives: the site
-/// is built from the repository's GitHub releases). A release is tagged with its version ("v1.2.0") and carries the
+/// Reads Nyatch's releases, as nyatch.arkhins.com lists them (in the shape GitHub's API gives; the site keeps
+/// its releases in Neon and their files in Cloudflare R2). A release is tagged with its version ("v1.2.0") and carries the
 /// installer ("Nyatch-1.2.0.msi"), its SHA-256 ("Nyatch-1.2.0.msi.sha256") and its signature
 /// ("Nyatch-1.2.0.msi.sig", see <see cref="ReleaseSignature"/>). Nothing here touches the
 /// network: the caller fetches, this reads.
