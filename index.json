@@ -4,10 +4,10 @@
     {
       "id": "bocchi",
       "name": "Bocchi the Rock!",
-      "version": "1.0",
+      "version": "1.1",
       "author": "Arkhins",
       "licence": "",
-      "description": "Hitori \"Bocchi\" Gotoh, the shy guitarist of Kessoku Band, for every moment of the day.",
+      "description": "Hitori \u0022Bocchi\u0022 Gotoh, the shy guitarist of Kessoku Band, for every moment of the day.",
       "minApp": "",
       "pictures": 27,
       "covers": [
@@ -16,8 +16,8 @@
         "clipboard",
         "focus"
       ],
-      "size": 16597306,
-      "sha256": "f5eb47aaaa53a173d2b76899fcd967cf08aa44e4e9e5e9f0bae284e10a94ee08",
+      "size": 11751184,
+      "sha256": "cb555bcf15b484e392d4a22b4ac9c421edbcc8770f2c0d58b77ac70d830ecf42",
       "file": "bocchi/bocchi.nyatch",
       "preview": "bocchi/preview.png",
       "accent": "#EBA8C1",
