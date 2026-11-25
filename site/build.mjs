@@ -1,4 +1,4 @@
-// Builds nyatch.arkhins.com into dist/: the pages in public/ and the theme packs in characters/.
+// Builds nyatch.arkhins.com into dist/: the pages in public/.
 //
 //   node build.mjs
 //
@@ -9,7 +9,8 @@
 //   /download/latest           api/download.js the newest installer, straight away
 //   /releases/latest.json      api/latest.js   the newest release, read by installed copies of Nyatch
 //   /releases/<tag>/<file>     api/file.js     a release's installer, checksum and signature
-// build.ps1 -Release makes the GitHub release.
+//   /characters/...            api/characters.js the themes, from the nyatch-themes branch
+// build.ps1 -Release makes the GitHub release; a theme is added by a commit to the nyatch-themes branch.
 
 import { cp, readFile, rm, writeFile } from 'node:fs/promises';
 
@@ -17,7 +18,6 @@ const OUT = 'dist';
 
 await rm(OUT, { recursive: true, force: true });
 await cp('public', OUT, { recursive: true });
-await cp('characters', `${OUT}/characters`, { recursive: true });
 
 // These are served by api/page.js (a copy here would be served in its place).
 await rm(`${OUT}/index.html`);

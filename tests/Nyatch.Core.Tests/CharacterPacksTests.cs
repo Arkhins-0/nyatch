@@ -53,8 +53,8 @@ public sealed class CharacterPacksTests : IDisposable
         var listed = CharacterPacks.Make(PackFolder(), Home);
         Assert.Equal(3, listed.Pictures);
         Assert.Equal(["time", "weather"], listed.Covers);
-        Assert.True(File.Exists(Path.Combine(Home, "packs", "neko.nyatch")));
-        Assert.True(File.Exists(Path.Combine(Home, "previews", "neko.png")));
+        Assert.True(File.Exists(Path.Combine(Home, "neko", "neko.nyatch")));
+        Assert.True(File.Exists(Path.Combine(Home, "neko", "preview.png")));
 
         var packs = Packs;
         var available = await packs.AvailableAsync();
@@ -135,7 +135,7 @@ public sealed class CharacterPacksTests : IDisposable
     public void ABrokenFileChangesNothing()
     {
         var packs = Packs;
-        packs.InstallFile(Path.Combine(CharacterPacks.Make(PackFolder(), Home) is { } made ? Home : "", "packs", "neko.nyatch"));
+        packs.InstallFile(Path.Combine(CharacterPacks.Make(PackFolder(), Home) is { } made ? Home : "", "neko", "neko.nyatch"));
         var before = packs.Stamp("neko");
 
         // A picture that is not a picture, under the same id.

@@ -425,7 +425,7 @@ internal sealed class PackProject
 
     // ---------- Making it ----------
 
-    /// <summary>Make the pack into a pack list's home (packs\&lt;id&gt;.nyatch, previews\, index.json): the site's characters folder, or any.</summary>
+    /// <summary>Make the pack into a pack list's home (&lt;id&gt;\&lt;id&gt;.nyatch, &lt;id&gt;\preview.png, index.json): the nyatch-themes branch, or any folder.</summary>
     public CharacterPack MakeInto(string home)
     {
         Save();

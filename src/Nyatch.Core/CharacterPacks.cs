@@ -39,7 +39,8 @@ public sealed record CharacterPackIndex(int Format, CharacterPack[] Packs);
 /// <summary>
 /// Character packs: .nyatch files (a ZIP with pack.json, a preview picture, a licence and the pictures)
 /// and where they are installed. The list of packs to download comes from a source: a web address or a
-/// folder, laid out as index.json, previews/&lt;id&gt;.png and packs/&lt;id&gt;.nyatch. A pack is only fetched when
+/// folder, laid out as index.json and a folder per pack, &lt;id&gt;/&lt;id&gt;.nyatch and &lt;id&gt;/preview.png (the
+/// nyatch-themes branch, which the site serves). A pack is only fetched when
 /// asked for, checked against the list's size and SHA-256, and unpacked into its own folder; only
 /// pictures (PNG, GIF), pack.json and the licence are taken from it.
 /// </summary>
@@ -404,7 +405,7 @@ public sealed partial class CharacterPacks
 
     /// <summary>
     /// Make a pack's .nyatch file from a folder (pack.json, preview.png or .gif, its font if it has one, and the
-    /// pictures), and list it: writes packs/&lt;id&gt;.nyatch and previews/&lt;id&gt;.png under
+    /// pictures), and list it: writes &lt;id&gt;/&lt;id&gt;.nyatch and &lt;id&gt;/preview.png under
     /// <paramref name="home"/>, and adds or replaces the pack in its index.json.
     /// </summary>
     public static CharacterPack Make(string packFolder, string home)
@@ -432,9 +433,8 @@ public sealed partial class CharacterPacks
             Accent = manifest.AccentColour ?? "",
         };
 
-        Directory.CreateDirectory(Path.Combine(home, "packs"));
-        Directory.CreateDirectory(Path.Combine(home, "previews"));
-        var package = Path.Combine(home, "packs", manifest.Id + Extension);
+        Directory.CreateDirectory(Path.Combine(home, manifest.Id));
+        var package = Path.Combine(home, manifest.Id, manifest.Id + Extension);
         if (File.Exists(package)) File.Delete(package);
         using (var zip = ZipFile.Open(package, ZipArchiveMode.Create))
         {
@@ -451,14 +451,14 @@ public sealed partial class CharacterPacks
             foreach (var picture in pictures) zip.CreateEntryFromFile(picture, "pictures/" + Path.GetFileName(picture).ToLowerInvariant(), CompressionLevel.NoCompression);
         }
         if (new FileInfo(package).Length > MaxPack) throw new InvalidDataException($"The pack is over {MaxPack / 1024 / 1024} MB.");
-        var previewName = $"previews/{manifest.Id}{Path.GetExtension(preview).ToLowerInvariant()}";
+        var previewName = $"{manifest.Id}/preview{Path.GetExtension(preview).ToLowerInvariant()}";
         File.Copy(preview, Path.Combine(home, previewName.Replace('/', Path.DirectorySeparatorChar)), overwrite: true);
 
         var listed = manifest with
         {
             Size = new FileInfo(package).Length,
             Sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(package))).ToLowerInvariant(),
-            File = $"packs/{manifest.Id}{Extension}",
+            File = $"{manifest.Id}/{manifest.Id}{Extension}",
             Preview = previewName,
         };
         var indexFile = Path.Combine(home, "index.json");

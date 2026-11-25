@@ -29,7 +29,7 @@ the site, so a new release shows without rebuilding it.
 | `/releases` | `api/page.js` | What changed in each version |
 | `/releases/latest.json` | `api/latest.js` | The newest release, read by Nyatch's updater (the same shape as GitHub's API) |
 | `/releases/<tag>/<file>` | `api/file.js` | That release's installer, checksum and signature (sent on to GitHub) |
-| `/characters/index.json` | static | The theme packs Nyatch lists, with `previews/` and `packs/` |
+| `/characters/index.json`, `/characters/<id>/<file>` | `api/characters.js` | The themes Nyatch lists, from the `nyatch-themes` branch (files sent on to GitHub) |
 
 The pages and `latest.json` are kept by Vercel's cache for a minute.
 
@@ -41,13 +41,16 @@ The pages and `latest.json` are kept by Vercel's cache for a minute.
 
 Installed copies find the new version at their next check (every few hours).
 
-## Publishing a character pack
+## Publishing a theme
 
-`dotnet run tools\MakePack.cs -- <pack folder> site\characters` writes the pack's `.nyatch` file and cover
-here and lists it in `index.json`. Commit and push; Vercel rebuilds. To update a pack, raise the
-`version` in its `pack.json` and run the tool again: installed copies update themselves.
+The released themes live on their own branch, `nyatch-themes`, which holds no code: `index.json`, and
+`<id>/<id>.nyatch` and `<id>/preview.png` for each theme. Check that branch out in a folder of its own, then:
 
-Only publish packs whose pictures you may share.
+`dotnet run tools\MakePack.cs -- <theme folder> <that folder>` writes the theme's pack and cover there and
+lists it in `index.json`. Commit and push the branch; the site shows it within a few minutes, without being
+rebuilt. To update a theme, raise the `version` in its `pack.json` first: installed copies update themselves.
+
+Only publish themes whose pictures you may share.
 
 ## Trying it locally
 

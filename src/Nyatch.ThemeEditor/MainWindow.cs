@@ -947,7 +947,7 @@ internal sealed partial class MainWindow : Window
     private void MakeIntoList()
     {
         if (!Ready()) return;
-        var pick = new OpenFolderDialog { Title = "Choose the theme list folder (nyatch\\site\\characters)" };
+        var pick = new OpenFolderDialog { Title = "Choose the theme list folder (the nyatch-themes branch, checked out)" };
         if (pick.ShowDialog(this) != true) return;
         try
         {
