@@ -38,6 +38,9 @@ internal sealed partial class DeckWindow
         public string Answer { get; set; } = "";
         public bool AnswerIsNote { get; set; }
         public List<Action> Actions { get; } = [];
+        // Attached to the next question (the + button), and whether the mic is listening for it.
+        public List<ChatFile> Files { get; } = [];
+        public bool Listening { get; set; }
     }
 
     // A chat page for every assistant (the ones beyond these three are on the side panel only).
@@ -75,7 +78,9 @@ internal sealed partial class DeckWindow
             return page.Actions.Count - 1;
         }
         static string Clean(string text) => text.Replace('\u001E', ' ').Replace('\u001F', ' ');
-        var name = Assistant.Name(page.Engine);
+        // On the side panel with no LLM connected yet: just "LLM", no logo, and a way to add one.
+        var noLlm = SideOn && ReferenceEquals(page, SideAi) && !AnySideKey;
+        var name = noLlm ? "LLM" : Assistant.Name(page.Engine);
         var records = new List<string>();
         var hasKey = HasKey(page);
         var history = Act(() =>
@@ -92,13 +97,31 @@ internal sealed partial class DeckWindow
             AiChanged(page);
             AiFocusField();
         });
-        var keys = Act(() => OpenSettingsAt?.Invoke("Keys"));
+        var keys = Act(() =>
+        {
+            if (noLlm) Island.SideOpen(false);
+            OpenSettingsAt?.Invoke(noLlm ? "chats" : "Keys");
+        });
         var send = Act(() => _ = AiSend(page));
         records.Add(string.Join('\u001F', "A", name, hasKey ? "1" : "0", page.History ? "1" : "0", history.ToString(), fresh.ToString(), keys.ToString(),
             page.Running is not null ? "1" : "0", send.ToString(), Clean(page.Draft),
-            page.Running is null && page.Asking is not null && page.AnswerIsNote ? "1" : "0"));
+            page.Running is null && page.Asking is not null && page.AnswerIsNote ? "1" : "0",
+            // On the side panel: the x in the corner that closes it.
+            SideOn && ReferenceEquals(page, SideAi) ? Act(() => Island.SideOpen(false)).ToString() : "-1",
+            // The reply box's + (attach) and mic, whether the mic is listening, and whether anything is attached.
+            Act(() => AttachMenu(page)).ToString(), Act(() => Mic(page)).ToString(), page.Listening ? "1" : "0", page.Files.Count > 0 ? "1" : "0"));
+        // What is attached to the next question: a chip each, with its x.
+        foreach (var file in page.Files.ToList())
+        {
+            var kind = file.IsPicture ? "picture" : file.IsPdf ? "pdf" : "text";
+            records.Add(string.Join('\u001F', "F", Clean(file.Name), kind, Act(() =>
+            {
+                page.Files.Remove(file);
+                AiChanged(page);
+            }).ToString()));
+        }
         // On the side panel: the chat on show, as a button in the corner that lists the chats to choose from.
-        if (SideOn && _sideTabs.Count > 0)
+        if (SideOn && _sideTabs.Count > 0 && !noLlm)
         {
             var pick = Act(ShowChatPicker);
             records.Add(string.Join('\u001F', "S", _sideTabs[Math.Clamp(_sideTab, 0, _sideTabs.Count - 1)], _sideTab.ToString(System.Globalization.CultureInfo.InvariantCulture), pick.ToString()));
@@ -209,7 +232,9 @@ internal sealed partial class DeckWindow
         var engine = page.Engine;
         var name = Assistant.Name(engine);
         var question = page.Draft.Trim();
-        if (question.Length == 0) return;
+        // A question may be only attachments (a screenshot: "what is this?" can be left out).
+        if (question.Length == 0 && page.Files.Count == 0) return;
+        if (ReferenceEquals(_listeningFor, page)) StopListening();
         var key = Assistant.Secret(engine) is { } id ? Secrets.Get(id) : null;
         if (key is null)
         {
@@ -219,10 +244,14 @@ internal sealed partial class DeckWindow
         var now = DateTimeOffset.Now.ToUnixTimeMilliseconds();
         var before = page.Current;
         var chat = page.Current ?? new Chat(Guid.NewGuid().ToString("N"), Assistant.Id(engine), now, []);
-        var turns = chat.Turns.Append(new ChatTurn("user", question, now)).ToList();
+        var (text, files) = WithFiles(question, page.Files);
+        var turns = chat.Turns.Append(new ChatTurn("user", text, now, files.Count > 0 ? files : null)).ToList();
+        var attached = page.Files.Count;
+        page.Files.Clear();
         page.History = false;
         page.Draft = "";
-        page.Asking = question;
+        // Shown as asked: the typed words, and what went with them.
+        page.Asking = attached == 0 ? question : (question.Length > 0 ? question + " " : "") + (attached == 1 ? "(1 file)" : $"({attached} files)");
         page.AskedAt = now;
         page.Answer = "Thinking…";
         page.AnswerIsNote = true;

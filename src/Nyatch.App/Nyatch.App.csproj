@@ -20,6 +20,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Windows' own speech recognition, on this PC: the LLM panel's mic. -->
+    <PackageReference Include="System.Speech" Version="9.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Nyatch.Core\Nyatch.Core.csproj" />
     <!-- The theme editor, opened from the Theme page in a window of its own. -->
     <ProjectReference Include="..\Nyatch.ThemeEditor\Nyatch.ThemeEditor.csproj" />

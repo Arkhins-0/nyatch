@@ -92,7 +92,8 @@ internal sealed partial class SettingsWindow
     }
 
     /// <summary>The top notch's Tools page's pictures: Quick Lookup open, and the game overlay in the closed notch.</summary>
-    private FrameworkElement ToolsStage()
+    /// <summary>The game overlay: the closed top notch with the numbers it shows.</summary>
+    private FrameworkElement GameOverlayPicture()
     {
         var (_, ink, muted, _, _) = NotchColours();
         var font = NotchFont();
@@ -104,6 +105,6 @@ internal sealed partial class SettingsWindow
         }
         var overlay = ClosedNotch(null, numbers);
         overlay.VerticalAlignment = VerticalAlignment.Center;
-        return Stage(("Quick Lookup", Small(LookupPicture())), ("Game overlay", overlay));
+        return Stage(("Game overlay", overlay));
     }
 }

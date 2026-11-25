@@ -434,7 +434,8 @@ internal sealed partial class SettingsWindow
             var settingsOn = id switch
             {
                 "apps" or "tray" or "clipboard" => "deck-files",
-                "focus" or "terminal" or "online" => "deck-tools",
+                "focus" => "focus",
+                "terminal" or "online" => "deck-tools",
                 _ => null,
             };
             if (settingsOn is not null && SettingsLayout.Page(settingsOn) is { } ownPage) Fact("Settings", LinkChip(ownPage.Name, () => OpenPage(ownPage.Id)));

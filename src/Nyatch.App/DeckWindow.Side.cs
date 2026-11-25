@@ -33,6 +33,9 @@ internal sealed partial class DeckWindow
     /// <summary>The chat on the side panel's page.</summary>
     private AiPage? SideAi => _sideTab >= 0 && _sideTab < _sideTabs.Count ? _aiPages[_sideTabs[_sideTab]] : null;
 
+    /// <summary>Whether any LLM on the side panel has its key.</summary>
+    private bool AnySideKey => _sideTabs.Any(id => HasKey(_aiPages[id]));
+
     /// <summary>The chat on the second notch's page (only when the side panel is off).</summary>
     private AiPage? DeckAi => _tab >= 0 && _tab < _tabs.Count && _tabs[_tab].Native is { } id && _aiPages.TryGetValue(id, out var page) ? page : null;
 
@@ -125,6 +128,19 @@ internal sealed partial class DeckWindow
     private void ShowSidePage()
     {
         if (!SideOn || SideAi is not { } page) return;
+        // No LLM connected: the tab says "LLM" with no logo, and the panel asks for a key.
+        if (!AnySideKey)
+        {
+            Island.SideShowPage("llm", 0, 0);
+            Island.SideSetPageData(AiData(page));
+            return;
+        }
+        // One without a key is never on show while another has one.
+        if (!HasKey(page))
+        {
+            _sideTab = _sideTabs.FindIndex(id => HasKey(_aiPages[id]));
+            page = SideAi!;
+        }
         // Kept for next time: the tab shows this chat's logo, and the panel opens on it.
         try
         {

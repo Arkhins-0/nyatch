@@ -17,61 +17,54 @@ public sealed record LayoutPage(string Id, string Group, string Name, string Tit
 
 /// <summary>
 /// Where every setting lives in the settings window. Each setting is in one place only: on one page,
-/// either in a section or as one of the page's special controls. The two notches are laid out alike:
-/// Layout, Pages, then a page for each family of features.
+/// either in a section or as one of the page's special controls. The pages are grouped by what someone
+/// comes to do, not by which notch draws a feature: General first, then the Features (each on a page of
+/// its own, named as people know it: Quick Lookup, Media & lyrics...), the Look, the Notches (where each
+/// sits and which pages it has) and the LLM.
 /// </summary>
 public static class SettingsLayout
 {
-    public const string Both = "Both notches", Top = "Top notch", Second = "Second notch", Side = "LLM", App = "Nyatch";
+    public const string General = "General", Features = "Features", Look = "Look", Notches = "Notches", Llm = "LLM";
 
     /// <summary>The sidebar's groups, in order.</summary>
-    public static readonly IReadOnlyList<string> Groups = [Both, Top, Second, Side, App];
+    public static readonly IReadOnlyList<string> Groups = [General, Features, Look, Notches, Llm];
 
     public static readonly IReadOnlyList<LayoutPage> Pages =
     [
-        new("appearance", Both, "Appearance", "Appearance", "Theme, shape, material and text of both notches.",
+        new("general", General, "General", "General", "Starting, language and this window.",
         [
-            new("Colours", ["Themes.ThemePreset", "Themes.AccentColorMode", "Themes.CustomAccentHex", "Themes.AccentBloom"]),
-            new("Shape", ["Appearance.ShapeStyle", "Themes.ContourBorderMode"]),
-            new("Material", ["Themes.PillOpacity", "Themes.TintIntensity", "Themes.BackdropMaterial", "Themes.BackdropFillOpacity", "Themes.BackdropTint", "Themes.MaterialDepth", "Themes.DropShadow"]),
-            new("Text", ["Themes.FontFamily", "Themes.TextScale"]),
-            new("Custom colours", ["Themes.PillBgColor", "Themes.TextPrimaryColor", "Themes.TextSecondaryColor", "Themes.ContourBorderHex"]),
+            new("Startup", ["General.LaunchAtStartup"]),
+            new("Language", ["Modules.Language"]),
+            new("This window", ["General.SettingsTheme"]),
         ]),
-        new("motion", Both, "Motion", "Motion", "How the notches move.",
+        new("shortcuts", General, "Shortcuts", "Shortcuts", "Every hotkey of Nyatch, in one place.", [],
         [
-            new("Movement", ["Animations.AnimationStyle", "Animations.AnimationSpeed", "Animations.TargetFPS"]),
-            new("Player", ["Animations.ExpandedMediaTransitions", "Animations.PillCoverSpin"]),
+            "Shortcuts.HideShowHotkeyEnabled", "Shortcuts.HideShowModifiers", "Shortcuts.HideShowKey",
+            "Shortcuts.LookupModifiers", "Shortcuts.LookupKey",
+            "Shortcuts.DeckHotkeyEnabled", "Shortcuts.DeckModifiers", "Shortcuts.DeckKey", "Deck.PageKeys",
+            "Shortcuts.SideHotkeyEnabled", "Shortcuts.SideModifiers", "Shortcuts.SideKey",
         ]),
-        new("clock", Both, "Clock & date", "Clock & date", "The time and the date, as both notches write them.",
+        new("updates", General, "Updates", "Updates", "Nyatch updates itself from its releases.",
         [
-            new("Time", ["Modules.ClockFormat", "Modules.ShowSeconds"]),
-            new("Date", ["Modules.DateStyle", "Modules.DateFormat"]),
-            new("In the top notch", ["Modules.ClockNote", "Modules.DateFirst", "Themes.ClockAccentGlow", "Modules.MediaPillClock"]),
+            new("Automatic", ["Updates.AutoCheck", "Updates.AutoInstall"]),
         ]),
-        new("characters", Both, "Theme", "Theme", "A theme for the notches: a picture for each moment on the open pages, a colour and a font.",
-        [
-            new("Theme", ["Characters.Enabled", "Characters.UseAccent", "Characters.UseFont", "Characters.AutoUpdate"]),
-        ], Special: ["Characters.Pack"]),
+        new("about", General, "About", "About", "The creator and the copyright.", []),
+        new("terms", General, "Terms", "Terms", "The services Nyatch uses, and its licence.", []),
+        new("notice", General, "Notice", "Notice", "The notice that comes with Nyatch.", []),
 
-        new("top-layout", Top, "Layout", "Top notch layout", "Where the top notch sits, how big it is and when it shows.",
+        new("search", Features, "Quick Lookup", "Quick Lookup", "A search box at the top of the screen, opened with its hotkey: files, apps, sums and the web.",
         [
-            new("Place", ["Appearance.Position", "Appearance.TargetMonitor", "Appearance.OffsetX", "Appearance.OffsetY", "Appearance.SeparateExpandedOffsetY", "Appearance.OffsetYExpanded", "Appearance.BorderMergedMode"]),
-            new("Size", ["Appearance.SizeScale", "Appearance.AutoDpiScale"]),
-            new("Behaviour", ["Behavior.AlwaysOnTop", "Behavior.ExpandOnHover", "Behavior.AutoHideIdleSeconds", "Behavior.AutoHideFullscreen", "Behavior.UnhideOnHover"]),
+            new("Quick Lookup", ["Modules.QuickLookup"]),
+            new("What it finds", ["Modules.QuickLookupFiles", "Modules.QuickLookupWeb", "Modules.Calculator"]),
         ]),
-        new("top-pages", Top, "Pages", "Top notch pages", "The pages the top notch turns through, and each page's own settings.",
-        [
-            new("Calendar", ["Modules.FirstDayOfWeek", "Themes.CalendarAccent"], Key: "calendar"),
-            new("Weather", ["Modules.Weather", "Modules.WeatherCity", "Modules.WeatherFahrenheit"], Key: "weather"),
-        ], ["Appearance.TopPages", "Modules.FileTrayModule"]),
-        new("media", Top, "Media & lyrics", "Media & lyrics", "The player and the lyrics in the top notch.",
+        new("media", Features, "Media & lyrics", "Media & lyrics", "The player and the lyrics in the top notch.",
         [
             new("Player", ["Modules.Media", "Modules.MediaAutoExpand", "Modules.MediaExpandBlocklist", "Appearance.ProgressStyle", "Appearance.SpectrumStyle", "Themes.CoverTint"]),
             new("Lyrics", ["Modules.Lyrics", "Modules.LyricsSource", "Modules.MediaTabLyrics", "Modules.LyricsVisualizer", "Modules.KaraokeLyrics", "Modules.KaraokeLetterGlow", "Modules.LyricsNeighborLinesVisible"]),
             new("Lyrics timing", ["Modules.LyricsOffsetMs", "Modules.LyricsOffsetBluetoothMs"]),
             new("Lyrics on this PC", ["Modules.LyricsCache", "Modules.LyricsCacheMaxMB"]),
         ]),
-        new("alerts", Top, "Alerts", "Alerts", "Short notices the top notch shows when something changes.",
+        new("alerts", Features, "Alerts", "Alerts", "Short notices the top notch shows when something changes.",
         [
             new("System", ["Modules.Volume", "Modules.Brightness", "Modules.CapsLock", "Modules.Battery", "Modules.Progress", "Modules.Clipboard"]),
             new("Bluetooth", ["Modules.BluetoothIndicator", "Modules.BluetoothShowBattery"]),
@@ -79,73 +72,90 @@ public static class SettingsLayout
             new("Notices", ["Modules.StatusCountdownProgress"]),
             new("Privacy", ["Indicators.PrivacyDots", "Indicators.PrivacyDotsMic", "Indicators.PrivacyDotsMicHex", "Indicators.PrivacyDotsCam", "Indicators.PrivacyDotsCamHex"]),
         ]),
-        new("tools", Top, "Tools", "Top notch tools", "Extras in the top notch: a search box, a timer and a game overlay.",
+        new("focus", Features, "Focus & timers", "Focus & timers", "The timer, the stopwatch and the alarms on the second notch's Focus page.",
         [
-            new("Quick Lookup", ["Modules.QuickLookup", "Modules.QuickLookupFiles", "Modules.QuickLookupWeb", "Modules.Calculator"]),
-            new("Focus timer", ["Modules.TimerModule"]),
-            new("Game overlay", ["Modules.GameOverlay", "Modules.GameOverlayCompact", "Modules.ShowMetricText", "Modules.GameOverlayShowFps", "Modules.GameOverlayShowCpu", "Modules.GameOverlayShowGpu", "Modules.GameOverlayShowRam", "Modules.GameOverlayShowDisk"]),
+            new("Timer", ["Deck.TimerMinutes"]),
+            new("When it rings", ["Deck.FocusSound", "Deck.TimerSound", "Deck.AlarmSound", "Deck.RingVolume", "Deck.RingLowersOthers", "Deck.SnoozeMinutes", "Deck.FocusNotify"]),
+            new("Top notch menu", ["Modules.TimerModule"]),
+        ]),
+        new("deck-files", Features, "Apps & files", "Apps & files", "The Apps, Tray and Clipboard pages of the second notch.",
+        [
+            new("Apps", ["Deck.AppsPinned", "Deck.AppsRecent", "Deck.AppsRecentCount"]),
+            new("Tray", ["Modules.FileTrayMaxItems", "Modules.FileTrayPersist"]),
+            new("Clipboard", ["Deck.ClipboardRemember", "Deck.ClipboardKept", "Deck.ClipboardPictures"]),
+        ]),
+        new("deck-tools", Features, "Terminal & Online", "Terminal & Online", "The Terminal and Online pages of the second notch.",
+        [
+            new("Terminal", ["Deck.TerminalShell", "Deck.TerminalFolder"]),
+            new("Online", ["Deck.PingHost"]),
+        ]),
+        new("game", Features, "Game overlay", "Game overlay", "Frames per second and how busy the PC is, at the top while a game is full screen.",
+        [
+            new("Game overlay", ["Modules.GameOverlay", "Modules.GameOverlayCompact", "Modules.ShowMetricText"]),
+            new("What it shows", ["Modules.GameOverlayShowFps", "Modules.GameOverlayShowCpu", "Modules.GameOverlayShowGpu", "Modules.GameOverlayShowRam", "Modules.GameOverlayShowDisk"]),
+        ]),
+        new("explorer", Features, "File Explorer", "File Explorer", "Folder sizes and clearer units in File Explorer.",
+        [
+            new("Folder sizes", ["Explorer.Enabled", "Explorer.FolderSizes", "Explorer.MixFoldersWhenSorting"]),
+            new("Units", ["Explorer.SizeUnits", "Explorer.IecUnits"]),
         ]),
 
-        new("deck-layout", Second, "Layout", "Second notch layout", "Where the second notch sits and what it shows while closed.",
+        new("appearance", Look, "Appearance", "Appearance", "Theme, shape, material and text of both notches.",
+        [
+            new("Colours", ["Themes.ThemePreset", "Themes.AccentColorMode", "Themes.CustomAccentHex", "Themes.AccentBloom"]),
+            new("Shape", ["Appearance.ShapeStyle", "Themes.ContourBorderMode"]),
+            new("Material", ["Themes.PillOpacity", "Themes.TintIntensity", "Themes.BackdropMaterial", "Themes.BackdropFillOpacity", "Themes.BackdropTint", "Themes.MaterialDepth", "Themes.DropShadow"]),
+            new("Text", ["Themes.FontFamily", "Themes.TextScale"]),
+            new("Custom colours", ["Themes.PillBgColor", "Themes.TextPrimaryColor", "Themes.TextSecondaryColor", "Themes.ContourBorderHex"]),
+        ]),
+        new("motion", Look, "Motion", "Motion", "How the notches move.",
+        [
+            new("Movement", ["Animations.AnimationStyle", "Animations.AnimationSpeed", "Animations.TargetFPS"]),
+            new("Player", ["Animations.ExpandedMediaTransitions", "Animations.PillCoverSpin"]),
+        ]),
+        new("clock", Look, "Clock & date", "Clock & date", "The time and the date, as both notches write them.",
+        [
+            new("Time", ["Modules.ClockFormat", "Modules.ShowSeconds"]),
+            new("Date", ["Modules.DateStyle", "Modules.DateFormat"]),
+            new("In the top notch", ["Modules.ClockNote", "Modules.DateFirst", "Themes.ClockAccentGlow", "Modules.MediaPillClock"]),
+        ]),
+        new("characters", Look, "Theme", "Theme", "A theme for the notches: a picture for each moment on the open pages, a colour and a font.",
+        [
+            new("Theme", ["Characters.Enabled", "Characters.UseAccent", "Characters.UseFont", "Characters.AutoUpdate"]),
+        ], Special: ["Characters.Pack"]),
+
+        new("top-layout", Notches, "Top notch", "Top notch", "Where the top notch sits, how big it is and when it shows.",
+        [
+            new("Place", ["Appearance.Position", "Appearance.TargetMonitor", "Appearance.OffsetX", "Appearance.OffsetY", "Appearance.SeparateExpandedOffsetY", "Appearance.OffsetYExpanded", "Appearance.BorderMergedMode"]),
+            new("Size", ["Appearance.SizeScale", "Appearance.AutoDpiScale"]),
+            new("Behaviour", ["Behavior.AlwaysOnTop", "Behavior.ExpandOnHover", "Behavior.AutoHideIdleSeconds", "Behavior.AutoHideFullscreen", "Behavior.UnhideOnHover"]),
+        ]),
+        new("top-pages", Notches, "Top notch pages", "Top notch pages", "The pages the top notch turns through, and each page's own settings.",
+        [
+            new("Calendar", ["Modules.FirstDayOfWeek", "Themes.CalendarAccent"], Key: "calendar"),
+            new("Weather", ["Modules.Weather", "Modules.WeatherCity", "Modules.WeatherFahrenheit"], Key: "weather"),
+        ], ["Appearance.TopPages", "Modules.FileTrayModule"]),
+        new("deck-layout", Notches, "Second notch", "Second notch", "Where the second notch sits and what it shows while closed.",
         [
             new("Second notch", ["Deck.Enabled"]),
             new("Place", ["Deck.Position", "Deck.OffsetX", "Deck.OffsetY"]),
             new("Behaviour", ["Deck.ExpandOnHover", "Deck.AlwaysOnTop"]),
             new("When closed", ["Deck.Shows"]),
         ], ["Deck.Emoji"]),
-        new("deck-pages", Second, "Pages", "Second notch pages", "The pages of the second notch: their order, and which are on it.", [], ["Deck.Pages"]),
-        new("deck-files", Second, "Apps & files", "Apps & files", "The Apps, Tray and Clipboard pages of the second notch.",
-        [
-            new("Apps", ["Deck.AppsPinned", "Deck.AppsRecent", "Deck.AppsRecentCount"]),
-            new("Tray", ["Modules.FileTrayMaxItems", "Modules.FileTrayPersist"]),
-            new("Clipboard", ["Deck.ClipboardRemember", "Deck.ClipboardKept", "Deck.ClipboardPictures"]),
-        ]),
-        new("deck-tools", Second, "Tools", "Second notch tools", "The Focus, Terminal and Online pages of the second notch.",
-        [
-            new("Focus", ["Deck.TimerMinutes", "Deck.FocusSound", "Deck.FocusNotify"]),
-            new("Pomodoro", ["Deck.PomodoroFocus", "Deck.PomodoroBreak", "Deck.PomodoroLongBreak", "Deck.PomodoroRounds"]),
-            new("Terminal", ["Deck.TerminalShell", "Deck.TerminalFolder"]),
-            new("Online", ["Deck.PingHost"]),
-        ]),
+        new("deck-pages", Notches, "Second notch pages", "Second notch pages", "The pages of the second notch: their order, and which are on it.", [], ["Deck.Pages"]),
 
         // The LLM panel: the services (a key and a model each), the saved chats, and where the panel sits.
-        new("chats", Side, "Services", "LLM services", "Connect a key for each LLM you use: its chat comes into the LLM panel.",
+        new("chats", Llm, "Services", "LLM services", "Connect a key for each LLM you use: its chat comes into the LLM panel.",
         [
             new("Answers", ["Assistant.Prompt", "Assistant.Instructions"]),
             new("Conversations", ["Assistant.KeepHistory"]),
         ], ["Assistant.ClaudeModel", "Assistant.ChatGptModel", "Assistant.GeminiModel", "Assistant.DeepSeekModel", "Assistant.MistralModel", "Assistant.GrokModel", "Assistant.GroqModel", "Assistant.PerplexityModel", "Assistant.OpenRouterModel"]),
-        new("history", Side, "Chat history", "Chat history", "Saved conversations, with every LLM.", []),
-        new("side-layout", Side, "Panel", "LLM panel", "Where the LLM panel sits on the screen, and how tall it is.",
+        new("history", Llm, "Chat history", "Chat history", "Saved conversations, with every LLM.", []),
+        new("side-layout", Llm, "Panel", "LLM panel", "Where the LLM panel sits on the screen, and how tall it is.",
         [
             new("LLM panel", ["Side.Enabled"]),
             new("Place", ["Side.Edge", "Side.Anchor", "Side.Height"]),
         ]),
-
-        new("general", App, "General", "General", "Starting, language and this window.",
-        [
-            new("Startup", ["General.LaunchAtStartup"]),
-            new("Language", ["Modules.Language"]),
-            new("This window", ["General.SettingsTheme"]),
-        ]),
-        new("shortcuts", App, "Shortcuts", "Shortcuts", "Every hotkey of Nyatch, in one place.", [],
-        [
-            "Shortcuts.HideShowHotkeyEnabled", "Shortcuts.HideShowModifiers", "Shortcuts.HideShowKey",
-            "Shortcuts.LookupModifiers", "Shortcuts.LookupKey",
-            "Shortcuts.DeckHotkeyEnabled", "Shortcuts.DeckModifiers", "Shortcuts.DeckKey", "Deck.PageKeys",
-            "Shortcuts.SideHotkeyEnabled", "Shortcuts.SideModifiers", "Shortcuts.SideKey",
-        ]),
-        new("explorer", App, "File Explorer", "File Explorer", "Folder sizes and clearer units in File Explorer.",
-        [
-            new("Folder sizes", ["Explorer.Enabled", "Explorer.FolderSizes", "Explorer.MixFoldersWhenSorting"]),
-            new("Units", ["Explorer.SizeUnits", "Explorer.IecUnits"]),
-        ]),
-        new("updates", App, "Updates", "Updates", "Nyatch updates itself from its releases.",
-        [
-            new("Automatic", ["Updates.AutoCheck", "Updates.AutoInstall"]),
-        ]),
-        new("about", App, "About", "About", "The creator and the copyright.", []),
-        new("terms", App, "Terms", "Terms", "The services Nyatch uses, and its licence.", []),
-        new("notice", App, "Notice", "Notice", "The notice that comes with Nyatch.", []),
     ];
 
     /// <summary>
@@ -211,6 +221,10 @@ public static class SettingsLayout
         ["Explorer.SizeUnits"] = ("Explorer.Enabled", ["true"]),
         ["Explorer.IecUnits"] = ("Explorer.Enabled", ["true"]),
         ["Updates.AutoInstall"] = ("Updates.AutoCheck", ["true"]),
+        ["Deck.TimerSound"] = ("Deck.FocusSound", ["true"]),
+        ["Deck.AlarmSound"] = ("Deck.FocusSound", ["true"]),
+        ["Deck.RingVolume"] = ("Deck.FocusSound", ["true"]),
+        ["Deck.RingLowersOthers"] = ("Deck.FocusSound", ["true"]),
     };
 
     public static LayoutPage? Page(string id) => Pages.FirstOrDefault(p => p.Id == id);

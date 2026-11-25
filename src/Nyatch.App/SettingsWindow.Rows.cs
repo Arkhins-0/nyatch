@@ -18,6 +18,7 @@ internal sealed partial class SettingsWindow
     private static readonly Dictionary<string, (int Min, int Max, int Step, string Unit)> Sliders = new(StringComparer.Ordinal)
     {
         ["Themes.PillOpacity"] = (35, 100, 1, "%"),
+        ["Deck.RingVolume"] = (5, 100, 5, "%"),
         ["Themes.TintIntensity"] = (0, 100, 1, "%"),
         ["Themes.BackdropFillOpacity"] = (0, 100, 1, "%"),
         ["Themes.BackdropTint"] = (0, 100, 1, "%"),
@@ -40,10 +41,7 @@ internal sealed partial class SettingsWindow
         ["Deck.AppsRecentCount"] = (1, 30, 1, ""),
         ["Deck.ClipboardKept"] = (5, 500, 5, ""),
         ["Deck.TimerMinutes"] = (1, 999, 1, "min"),
-        ["Deck.PomodoroFocus"] = (1, 180, 5, "min"),
-        ["Deck.PomodoroBreak"] = (1, 60, 1, "min"),
-        ["Deck.PomodoroLongBreak"] = (1, 120, 5, "min"),
-        ["Deck.PomodoroRounds"] = (2, 12, 1, ""),
+        ["Deck.SnoozeMinutes"] = (1, 60, 1, "min"),
     };
 
     /// <summary>The icon (Segoe Fluent Icons) on a setting's card, for the settings that lead a group.</summary>
@@ -104,11 +102,15 @@ internal sealed partial class SettingsWindow
         ["Deck.AppsRecent"] = "\uE81C",
         ["Deck.ClipboardRemember"] = "\uE77F",
         ["Deck.TimerMinutes"] = "\uE916",
-        ["Deck.PomodoroFocus"] = "\uE916",
         ["Deck.FocusSound"] = "\uE767",
         ["Deck.FocusNotify"] = "\uEA8F",
         ["Deck.TerminalShell"] = "\uE756",
         ["Deck.TerminalFolder"] = "\uE8B7",
+        ["Deck.TimerSound"] = "\uE767",
+        ["Deck.AlarmSound"] = "\uE7ED",
+        ["Deck.RingVolume"] = "\uE767",
+        ["Deck.SnoozeMinutes"] = "\uE708",
+        ["Deck.RingLowersOthers"] = "\uE993",
         ["Deck.PingHost"] = "\uE701",
         ["Explorer.Enabled"] = "\uEC50",
         ["Characters.Enabled"] = "\uE76E",
@@ -147,9 +149,6 @@ internal sealed partial class SettingsWindow
         ["Deck.Shows"] = "\uE8FD",
         ["Modules.FileTrayMaxItems"] = "\uE8B7",
         ["Modules.FileTrayPersist"] = "\uE74E",
-        ["Deck.PomodoroBreak"] = "\uE916",
-        ["Deck.PomodoroLongBreak"] = "\uE916",
-        ["Deck.PomodoroRounds"] = "\uE72C",
         ["Explorer.SizeUnits"] = "\uE8EC",
         ["Explorer.IecUnits"] = "\uE8EC",
         ["Explorer.FolderSizes"] = "\uE8B7",
@@ -320,12 +319,46 @@ internal sealed partial class SettingsWindow
         if (setting.Kind == SettingKind.Number) return Stepper(-100000, 100000, 1, "", Number(value), n => apply(Text(n)));
         if (IsColour(setting)) return ColourWell(value, apply);
         if (setting.FullName == "Themes.FontFamily") return FontBox(value, apply);
+        if (setting.FullName is "Deck.TimerSound" or "Deck.AlarmSound") return SoundBox(value, apply);
         return TextField(value, 220, Hints.GetValueOrDefault(setting.FullName, setting.Default.Length == 0 ? "Empty" : ""), typed =>
         {
             if (!SettingsStore.Accepts(setting, typed)) return false;
             apply(typed);
             return true;
-        });
+        }, MaxLengths.GetValueOrDefault(setting.FullName));
+    }
+
+    /// <summary>Text settings that are kept short: your line above the clock, two lines of about 25 characters.</summary>
+    private static readonly Dictionary<string, int> MaxLengths = new(StringComparer.Ordinal) { ["Modules.ClockNote"] = 50 };
+
+    /// <summary>A sound: its file's name (or "Windows alarm"), a button to hear it, one to choose a file, one back to the default.</summary>
+    private FrameworkElement SoundBox(string value, Action<string> apply)
+    {
+        var row = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        var name = value.Length > 0 ? System.IO.Path.GetFileNameWithoutExtension(value) : "Windows alarm";
+        row.Children.Add(new TextBlock { Text = name, Foreground = _soft, VerticalAlignment = VerticalAlignment.Center, MaxWidth = 160, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 0, 10, 0), ToolTip = value.Length > 0 ? value : null });
+        var hear = GhostButton("");
+        hear.FontFamily = Glyphs;
+        hear.ToolTip = "Play it";
+        hear.SetValue(AutomationName, "Play the sound");
+        hear.Click += (_, _) => Ringer.Try(value);
+        row.Children.Add(hear);
+        var choose = GhostButton("Choose…");
+        choose.Margin = new Thickness(8, 0, 0, 0);
+        choose.Click += (_, _) =>
+        {
+            var pick = new Microsoft.Win32.OpenFileDialog { Title = "Choose a sound", Filter = "Sounds (*.wav;*.mp3;*.wma;*.m4a)|*.wav;*.mp3;*.wma;*.m4a" };
+            if (pick.ShowDialog(this) == true) apply(pick.FileName);
+        };
+        row.Children.Add(choose);
+        if (value.Length > 0)
+        {
+            var usual = GhostButton("Default");
+            usual.Margin = new Thickness(8, 0, 0, 0);
+            usual.Click += (_, _) => apply("");
+            row.Children.Add(usual);
+        }
+        return row;
     }
 
     /// <summary>The fonts on this PC, to choose from or type; empty is the usual font.</summary>

@@ -3,8 +3,21 @@ using System.Text.Json;
 
 namespace Nyatch.Core;
 
-/// <summary>One message of a conversation. Role is "user" or "assistant"; At is when (Unix ms), 0 if unknown.</summary>
-public sealed record ChatTurn(string Role, string Text, long At = 0);
+/// <summary>
+/// One message of a conversation. Role is "user" or "assistant"; At is when (Unix ms), 0 if unknown. Files: the
+/// pictures and PDFs sent with a question (a text file goes into the text itself).
+/// </summary>
+public sealed record ChatTurn(string Role, string Text, long At = 0, IReadOnlyList<ChatFile>? Files = null);
+
+/// <summary>
+/// A picture or a PDF sent with a question: its name, its type ("image/png", "application/pdf") and its bytes as
+/// base64. The bytes are not kept with saved chats, only the name (they would make the history file huge).
+/// </summary>
+public sealed record ChatFile(string Name, string MediaType, [property: System.Text.Json.Serialization.JsonIgnore] string Data = "")
+{
+    public bool IsPicture => MediaType.StartsWith("image/", StringComparison.Ordinal);
+    public bool IsPdf => MediaType == "application/pdf";
+}
 
 /// <summary>A conversation with an assistant.</summary>
 public sealed record Chat(string Id, string Engine, long At, IReadOnlyList<ChatTurn> Turns)

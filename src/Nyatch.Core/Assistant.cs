@@ -160,8 +160,57 @@ public static class Assistant
 
     public static void Check(IReadOnlyList<ChatTurn> turns)
     {
-        if (turns.Count == 0 || turns[^1].Role != "user" || turns.Any(t => string.IsNullOrWhiteSpace(t.Text))) throw new AssistantException("Nothing to ask.");
+        // A question may be only a picture or a file.
+        if (turns.Count == 0 || turns[^1].Role != "user" || turns.Any(t => string.IsNullOrWhiteSpace(t.Text) && (t.Files?.Count ?? 0) == 0)) throw new AssistantException("Nothing to ask.");
     }
+
+    // ---------- Attachments ----------
+
+    /// <summary>Whether an LLM can be sent pictures (DeepSeek's chat cannot).</summary>
+    public static bool SeesPictures(AssistantEngine engine) => engine is not (AssistantEngine.DeepSeek or AssistantEngine.None);
+
+    /// <summary>Whether an LLM reads a PDF as it is (Claude, ChatGPT and Gemini).</summary>
+    public static bool ReadsPdfs(AssistantEngine engine) => engine is AssistantEngine.Claude or AssistantEngine.ChatGpt or AssistantEngine.Gemini;
+
+    /// <summary>A question's text, or a word for it when it is only an attachment (the services want some text).</summary>
+    private static string TextOf(ChatTurn turn) => string.IsNullOrWhiteSpace(turn.Text) && (turn.Files?.Count ?? 0) > 0 ? "See the attached file." : turn.Text;
+
+    /// <summary>The files of a turn that still have their bytes (saved chats keep only their names).</summary>
+    private static IEnumerable<ChatFile> Sent(ChatTurn turn) => (turn.Files ?? []).Where(f => f.Data.Length > 0);
+
+    // ---------- Claude, over HTTPS (for a conversation with pictures or PDFs) ----------
+
+    public const string ClaudeUrl = "https://api.anthropic.com/v1/messages";
+
+    public static string ClaudeBody(string model, IReadOnlyList<ChatTurn> turns, string own = "", string? prompt = null)
+    {
+        var messages = new JsonArray();
+        foreach (var turn in turns)
+        {
+            var content = new JsonArray();
+            foreach (var file in Sent(turn))
+            {
+                content.Add(new JsonObject
+                {
+                    ["type"] = file.IsPdf ? "document" : "image",
+                    ["source"] = new JsonObject { ["type"] = "base64", ["media_type"] = file.MediaType, ["data"] = file.Data },
+                });
+            }
+            content.Add(new JsonObject { ["type"] = "text", ["text"] = TextOf(turn) });
+            messages.Add(new JsonObject { ["role"] = turn.Role == "assistant" ? "assistant" : "user", ["content"] = content });
+        }
+        return new JsonObject
+        {
+            ["model"] = model, ["max_tokens"] = 32000, ["stream"] = true, ["system"] = InstructionsWith(own, prompt), ["messages"] = messages,
+        }.ToJsonString();
+    }
+
+    /// <summary>The new text in one event of Claude's stream, if it carries any.</summary>
+    public static string? ClaudeDelta(JsonElement streamEvent) =>
+        streamEvent.TryGetProperty("type", out var type) && type.GetString() == "content_block_delta" &&
+        streamEvent.TryGetProperty("delta", out var delta) && delta.TryGetProperty("text", out var text) && text.GetString() is { Length: > 0 } words
+            ? words
+            : null;
 
     // ---------- OpenAI ----------
 
@@ -170,7 +219,25 @@ public static class Assistant
     public static string OpenAiBody(string model, IReadOnlyList<ChatTurn> turns, string own = "", string? prompt = null)
     {
         var messages = new JsonArray { new JsonObject { ["role"] = "system", ["content"] = InstructionsWith(own, prompt) } };
-        foreach (var turn in turns) messages.Add(new JsonObject { ["role"] = turn.Role == "assistant" ? "assistant" : "user", ["content"] = turn.Text });
+        foreach (var turn in turns)
+        {
+            var files = Sent(turn).ToList();
+            if (files.Count == 0)
+            {
+                messages.Add(new JsonObject { ["role"] = turn.Role == "assistant" ? "assistant" : "user", ["content"] = turn.Text });
+                continue;
+            }
+            // With pictures (or a PDF): the text and each file, as parts.
+            var parts = new JsonArray { new JsonObject { ["type"] = "text", ["text"] = TextOf(turn) } };
+            foreach (var file in files)
+            {
+                var data = $"data:{file.MediaType};base64,{file.Data}";
+                parts.Add(file.IsPdf
+                    ? new JsonObject { ["type"] = "file", ["file"] = new JsonObject { ["filename"] = file.Name, ["file_data"] = data } }
+                    : new JsonObject { ["type"] = "image_url", ["image_url"] = new JsonObject { ["url"] = data } });
+            }
+            messages.Add(new JsonObject { ["role"] = "user", ["content"] = parts });
+        }
         return new JsonObject { ["model"] = model, ["stream"] = true, ["messages"] = messages }.ToJsonString();
     }
 
@@ -192,7 +259,13 @@ public static class Assistant
         var contents = new JsonArray();
         foreach (var turn in turns)
         {
-            contents.Add(new JsonObject { ["role"] = turn.Role == "assistant" ? "model" : "user", ["parts"] = new JsonArray { new JsonObject { ["text"] = turn.Text } } });
+            var parts = new JsonArray();
+            foreach (var file in Sent(turn))
+            {
+                parts.Add(new JsonObject { ["inline_data"] = new JsonObject { ["mime_type"] = file.MediaType, ["data"] = file.Data } });
+            }
+            parts.Add(new JsonObject { ["text"] = TextOf(turn) });
+            contents.Add(new JsonObject { ["role"] = turn.Role == "assistant" ? "model" : "user", ["parts"] = parts });
         }
         var body = new JsonObject
         {

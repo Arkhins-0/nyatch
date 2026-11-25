@@ -23,11 +23,6 @@ internal sealed partial class DeckWindow
             // The timer takes its new length unless it is under way (or paused part-way).
             if (!_timer.Running && _timer.Left(DateTime.Now) == _timer.Length) _timer.Reset(TimeSpan.FromMinutes(minutes));
         }
-        _pomodoro.Configure(
-            TimeSpan.FromMinutes(Whole("Deck.PomodoroFocus", 1, 180)),
-            TimeSpan.FromMinutes(Whole("Deck.PomodoroBreak", 1, 60)),
-            TimeSpan.FromMinutes(Whole("Deck.PomodoroLongBreak", 1, 120)),
-            Whole("Deck.PomodoroRounds", 2, 12));
         var keep = Whole("Deck.ClipboardKept", 5, 500);
         if (_clips.Keep != keep)
         {

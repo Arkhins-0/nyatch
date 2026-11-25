@@ -149,6 +149,7 @@ internal sealed partial class SettingsWindow : Window
         updater.Changed += UpdatesChanged;
         Closed += (_, _) =>
         {
+            Ringer.StopTrying();  // a sound being tried on Focus & timers stops with the window
             history.Changed -= HistoryChanged;
             updater.Changed -= UpdatesChanged;
         };
@@ -267,6 +268,9 @@ internal sealed partial class SettingsWindow : Window
             "keys" or "assistant" or "assistants" => "chats",
             "pages" or "second notch pages" => "deck-pages",
             "file explorer" => "explorer",
+            // The pages before they were grouped by feature.
+            "tools" or "quick lookup" or "lookup" => "search",
+            "game overlay" => "game",
             var other => other,
         };
         return SettingsLayout.Page(id)
@@ -284,7 +288,10 @@ internal sealed partial class SettingsWindow : Window
         "top-pages" or "deck-pages" => "",
         "media" => "",
         "alerts" => "",
-        "tools" or "deck-tools" => "",
+        "search" => "",
+        "focus" => "",
+        "game" => "",
+        "deck-tools" => "",
         "general" => "",
         "shortcuts" => "",
         "deck-files" => "",
@@ -386,7 +393,7 @@ internal sealed partial class SettingsWindow : Window
     /// Windows' accent colour for this background, as its own apps take it: the lighter shade on a dark
     /// background, the deeper one on a light one; and the shade under the pointer.
     /// </summary>
-    private static (Color Accent, Color Deep) WindowsAccent(bool light)
+    internal static (Color Accent, Color Deep) WindowsAccent(bool light)
     {
         try
         {
@@ -408,10 +415,10 @@ internal sealed partial class SettingsWindow : Window
 
     private static string GlyphFor(string group) => group switch
     {
-        SettingsLayout.Both => "\uE771",
-        SettingsLayout.Top => "\uE7F4",
-        SettingsLayout.Second => "\uE7C4",
-        SettingsLayout.Side => "\uE8BD",
+        SettingsLayout.Features => "\uE945",
+        SettingsLayout.Look => "\uE790",
+        SettingsLayout.Notches => "\uE7F4",
+        SettingsLayout.Llm => "\uE8BD",
         _ => "\uE713",
     };
 
@@ -548,9 +555,19 @@ internal sealed partial class SettingsWindow : Window
                     Picture(AlertsStage);
                     Sections(_page);
                     break;
-                case "tools":
+                case "search":
                     Head(_page);
-                    Picture(ToolsStage);
+                    Picture(LookupPicture);
+                    Sections(_page);
+                    break;
+                case "game":
+                    Head(_page);
+                    Picture(GameOverlayPicture);
+                    Sections(_page);
+                    break;
+                case "focus":
+                    Head(_page);
+                    Picture(() => PageStage("focus"));
                     Sections(_page);
                     break;
                 case "deck-files":
@@ -560,7 +577,7 @@ internal sealed partial class SettingsWindow : Window
                     break;
                 case "deck-tools":
                     Head(_page);
-                    Picture(() => PageStage("focus", "terminal", "online"));
+                    Picture(() => PageStage("terminal", "online"));
                     Sections(_page);
                     break;
                 case "chats":

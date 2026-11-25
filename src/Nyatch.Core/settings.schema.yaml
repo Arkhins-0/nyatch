@@ -600,21 +600,24 @@
   - TimerMinutes: 10
     $name: Timer length
     $description: ''
-  - PomodoroFocus: 25
-    $name: Focus turn
-    $description: ''
-  - PomodoroBreak: 5
-    $name: Short break
-    $description: ''
-  - PomodoroLongBreak: 15
-    $name: Long break
-    $description: ''
-  - PomodoroRounds: 4
-    $name: Turns before a long break
-    $description: ''
   - FocusSound: true
     $name: Sound
+    $description: 'Rings until Space stops it. Enter runs the timer again, or snoozes the alarm.'
+  - TimerSound: ""
+    $name: Timer sound
+    $description: 'A sound file. Empty: the Windows alarm.'
+  - AlarmSound: ""
+    $name: Alarm sound
+    $description: 'A sound file. Empty: the Windows alarm.'
+  - RingVolume: 100
+    $name: Ringing volume
     $description: ''
+  - SnoozeMinutes: 10
+    $name: Snooze
+    $description: 'How long an alarm waits when Enter snoozes it.'
+  - RingLowersOthers: true
+    $name: Lower other sounds while it rings
+    $description: 'Music and videos go quieter until it is stopped.'
   - FocusNotify: true
     $name: Notification
     $description: ''

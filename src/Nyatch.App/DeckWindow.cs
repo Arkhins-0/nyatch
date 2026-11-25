@@ -179,7 +179,10 @@ internal sealed partial class DeckWindow : Window
 
     private readonly Countdown _timer = new(TimeSpan.FromMinutes(10));
     private readonly Stopwatch2 _watch = new();
-    private readonly Pomodoro _pomodoro = new();
+    private readonly AlarmStore _alarms = new(SettingsStore.DefaultFolder);
+    private DateTime _alarmsChecked = DateTime.Now;
+    private (Alarm Alarm, DateTime At)? _snoozed;
+    private Ringer? _ringer;
 
     private readonly Border _pill = new();
     private readonly TextBlock _status = new();
@@ -332,6 +335,8 @@ internal sealed partial class DeckWindow : Window
         var root = new Grid { Children = { _pill } };
         Content = root;
         StartNativeOutline();
+        _ringer = new Ringer(new System.Windows.Interop.WindowInteropHelper(this).EnsureHandle());
+        ListenToTopMenu();
         StartSide();
 
         // ----- Opening and closing -----
@@ -719,8 +724,7 @@ internal sealed partial class DeckWindow : Window
     private void EverySecond()
     {
         var now = DateTime.Now;
-        if (_timer.TakeFinished(now)) Ring("Timer finished", "Your timer has run out.");
-        if (_pomodoro.Advance(now) is { } ended) Ring(ended, _pomodoro.OnBreak ? "Time for a break." : "Back to focus.");
+        CheckRinging(now);
         UpdateStatus();
         NoteForeground();
         SendNativeData(tick: true);
@@ -730,19 +734,13 @@ internal sealed partial class DeckWindow : Window
         }
     }
 
-    private void Ring(string title, string text)
-    {
-        if (_settings.Get("Deck.FocusSound") == "true") System.Media.SystemSounds.Asterisk.Play();
-        if (_settings.Get("Deck.FocusNotify") == "true") _notify(title, text);
-    }
-
     /// <summary>What the closed pill says: a running clock first, then the to-do count.</summary>
     private void UpdateStatus()
     {
         var now = DateTime.Now;
+        Island.SetFocusState(FocusState());
         var text =
-            _pomodoro.Clock.Running ? (_pomodoro.OnBreak ? "Break " : "Focus ") + Clock(_pomodoro.Clock.Left(now))
-            : _timer.Running ? Clock(_timer.Left(now))
+            _timer.Running ? Clock(_timer.Left(now))
             : _watch.Running ? Clock(_watch.Elapsed(now))
             : DateAndTime(now);
         if (_status.Text == text) return;

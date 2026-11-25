@@ -136,7 +136,8 @@ internal sealed partial class DeckWindow
         var chosen = TrackPopupMenu(menu, ReturnCommand | RightButton, at.X, at.Y, 0, window, IntPtr.Zero);
         PostMessageW(window, 0, IntPtr.Zero, IntPtr.Zero);
         DestroyMenu(menu);
-        if (chosen > 0 && chosen <= choices.Length) choices[chosen - 1].Do();
+        // Done once the menu's own message loop is over, so what it starts (a shell, timers) runs normally.
+        if (chosen > 0 && chosen <= choices.Length) Dispatcher.BeginInvoke(choices[chosen - 1].Do);
     }
 
     private Setting? Find(string fullName) => _settings.Schema.All.FirstOrDefault(s => s.FullName == fullName);
@@ -168,4 +169,21 @@ internal sealed partial class DeckWindow
         if (!_settings.Set(fullName, value)) return;
         SettingsChanged?.Invoke();
     }
+
+    /// <summary>
+    /// The top notch's right-click menu changes settings through here, as this notch's menu does, so they are
+    /// saved, both notches follow, and the Settings window shows them. An empty value is the default.
+    /// </summary>
+    private void ListenToTopMenu() =>
+        Island.SetChangeHost((name, value) => Dispatcher.BeginInvoke(() =>
+        {
+            if (value.Length > 0)
+            {
+                Change(name, value);
+                return;
+            }
+            if (!_settings.IsChanged(name)) return;
+            _settings.Reset(name);
+            SettingsChanged?.Invoke();
+        }));
 }

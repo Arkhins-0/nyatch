@@ -81,6 +81,18 @@ void Notify(int what, int x = 0, int y = 0) {
     if (auto handler = g_event) handler(what, x, y);
 }
 
+// Nyatch: a short code for the page a click was made on, sent with it, so the app can drop a click meant for
+// a page that is no longer on show (it would be taken as one of the new page's buttons). Never 0 (0: no page).
+// The app works out the same code (DeckWindow.PageCode).
+int PageCode(const std::wstring& page) {
+    uint32_t h = 17;
+    for (const wchar_t c : page) h = h * 31u + static_cast<uint32_t>(c);
+    return static_cast<int>(h & 0x3FFFFFFFu) | 1;
+}
+
+// Whether this window runs and the app listens to it (the top notch's Focus Timer items go to its Focus page).
+bool FocusHost() { return g_event != nullptr && g_thread != nullptr; }
+
 // Whether a box is on a page: the Focus page's, the Notes page's, the terminal's, the Online page's,
 // or the reply box on each chat page.
 bool ChatPage(const std::wstring& page) { return page == L"claude" || page == L"chatgpt" || page == L"gemini" || page == L"deepseek" || page == L"mistral" || page == L"grok" || page == L"groq" || page == L"perplexity" || page == L"openrouter"; }
@@ -162,6 +174,8 @@ void EditOutcome(HWND hwnd, int outcome) {
                 g_editSubmitted = e.text;
             }
             Notify(kEdit, id, Renderer::kEditSubmit);
+            // A question sent: the conversation goes to its end, where the question and its answer come.
+            if (id == 40) g_deck->chatToEnd_ = true;
             if (id == 11 || id == 20 || id == 40) {
                 g_deck->Remember(false, NowSeconds());
                 e.text.clear();
@@ -522,6 +536,8 @@ DWORD WINAPI ThreadProc(LPVOID) {
     D2D1_RECT_F lastAppClickRect = {};
     int pageIndex = 0, pageCount = 0;
     float scroll = 0.0f;           // the page's list, scrolled
+    float scrollGoal = 0.0f;       // where the wheel is taking it: scroll glides there (see below)
+    double scrollAt = 0.0;
     double lastWheelTurn = -1e9, lastWheelScroll = -1e9;
     POINT paintedHover = {-2, -2};
     float paintedScroll = -1.0f, paintedContent = -1.0f;
@@ -544,6 +560,8 @@ DWORD WINAPI ThreadProc(LPVOID) {
     float paintedShown = -1.0f;
     std::wstring paintedText;  // what the closed notch last showed: a new text (a ticking timer) repaints
     bool topmostNow = false, topmostKnown = false;
+    bool wasFull = false;      // the top notch thought a full-screen app was in front, last frame
+    double lastTopCheck = 0.0;  // when it last made sure it is on top
     auto previous = std::chrono::steady_clock::now();
 
     while (true) {
@@ -787,6 +805,7 @@ DWORD WINAPI ThreadProc(LPVOID) {
             std::lock_guard lock(g_mutex);
             if (page != g_page) {
                 scroll = 0.0f;
+                scrollGoal = 0.0f;
                 renderer.deckTraySel_.clear();
                 renderer.regionScroll_.clear();
                 renderer.regionMaxPrev_.clear();
@@ -845,6 +864,7 @@ DWORD WINAPI ThreadProc(LPVOID) {
                 const D2D1_RECT_F list = renderer.deckListRect_;
                 if (now2.y > list.bottom) scroll = std::min(renderer.deckScrollMax_, scroll + std::min(24.0f, (now2.y - list.bottom) * 0.4f));
                 if (now2.y < list.top) scroll = std::max(0.0f, scroll - std::min(24.0f, (list.top - now2.y) * 0.4f));
+                scrollGoal = scroll;
                 const float x0 = std::min(marqueeFrom.x, static_cast<float>(now2.x)), x1 = std::max(marqueeFrom.x, static_cast<float>(now2.x));
                 const float y0 = std::min(marqueeFrom.y, now2.y + scroll), y1 = std::max(marqueeFrom.y, now2.y + scroll);
                 std::set<std::wstring> picked = marqueeBase;
@@ -929,7 +949,7 @@ DWORD WINAPI ThreadProc(LPVOID) {
             }
             for (auto it = renderer.deckHits_.rbegin(); it != renderer.deckHits_.rend() && onPage && !used; ++it) {
                 if (it->action == Renderer::kDeckApp && it->data >= 0 && Renderer::Inside(it->rect, where)) {
-                    Notify(kAction, static_cast<int>(it->data) + 10000);
+                    Notify(kAction, static_cast<int>(it->data) + 10000, PageCode(page));
                     used = true;
                     break;
                 }
@@ -994,8 +1014,8 @@ DWORD WINAPI ThreadProc(LPVOID) {
                     lastAppClickAt = twice ? 0 : tick;
                     lastAppClickRect = hit.rect;
                     const auto dbl = renderer.deckDoubles_.find(hit.data);
-                    if (twice && dbl != renderer.deckDoubles_.end() && dbl->second >= 0) Notify(kAction, static_cast<int>(dbl->second));
-                    else if (hit.data >= 0) Notify(kAction, static_cast<int>(hit.data));
+                    if (twice && dbl != renderer.deckDoubles_.end() && dbl->second >= 0) Notify(kAction, static_cast<int>(dbl->second), PageCode(page));
+                    else if (hit.data >= 0) Notify(kAction, static_cast<int>(hit.data), PageCode(page));
                     break;
                 }
                 case Renderer::kDeckField:
@@ -1154,6 +1174,16 @@ DWORD WINAPI ThreadProc(LPVOID) {
                 }
             }
         }
+        // Nyatch: the page's list glides to where the wheel sent it: quick at first, easing in at the end.
+        {
+            const float dt = static_cast<float>(std::clamp(now - scrollAt, 0.0, 0.05));
+            scrollAt = now;
+            scrollGoal = std::clamp(scrollGoal, 0.0f, std::max(0.0f, renderer.deckScrollMax_));
+            if (scroll != scrollGoal) {
+                scroll += (scrollGoal - scroll) * (1.0f - std::exp(-dt * 16.0f));
+                if (std::fabs(scrollGoal - scroll) < 0.4f) scroll = scrollGoal;
+            }
+        }
         int wheelNow = g_wheel.exchange(0);
         if constexpr (kSide) {
             // Nyatch: on the side panel the wheel changes the chat only over its button (the logo and the name).
@@ -1196,9 +1226,10 @@ DWORD WINAPI ThreadProc(LPVOID) {
         if (const int wheel = wheelNow; wheel != 0 && onPage) {
             const float step = 48.0f * unit * (static_cast<float>(-wheel) / WHEEL_DELTA);
             const float max = renderer.deckScrollMax_;
-            const bool canScroll = (step > 0 && scroll < max - 0.5f) || (step < 0 && scroll > 0.5f);
+            const bool canScroll = (step > 0 && scrollGoal < max - 0.5f) || (step < 0 && scrollGoal > 0.5f);
             if (canScroll) {
-                scroll = std::clamp(scroll + step, 0.0f, max);
+                // Nyatch: the wheel moves the goal; the list glides there (each notch adds to where it is going).
+                scrollGoal = std::clamp(scrollGoal + step, 0.0f, max);
                 lastWheelScroll = now;
             } else if (!kSide && now - lastWheelScroll > 0.45 && now - lastWheelTurn > 0.16) {
                 // A moment after scrolling, so reaching the end does not turn the page by accident.
@@ -1277,7 +1308,7 @@ DWORD WINAPI ThreadProc(LPVOID) {
             width.Step(dt, open ? 380.0f : 200.0f, open ? 26.0f : 28.0f);
             height.Step(dt, open ? 380.0f : 200.0f, open ? 26.0f : 28.0f);
         }
-        const bool animating = width.value != width.target || height.value != height.target;
+        const bool animating = width.value != width.target || height.value != height.target || scroll != scrollGoal || renderer.deckPageMoving_;
 
         // Above a hidden taskbar while the pointer is on it, even when it is not always on top.
         const bool wantTopmost = kSide || settings.deckAlwaysOnTop || over;
@@ -1292,6 +1323,20 @@ DWORD WINAPI ThreadProc(LPVOID) {
             topmostKnown = true;
         }
         raised = over;
+        // Nyatch: a full-screen app (or anything else always on top) that came over it is not left there: once a
+        // second, and at once when full screen ends (a click on another screen), it goes back on top, as the top
+        // notch does (EnsureTopmost), then under the pages again.
+        {
+            const bool fullNow = g_isFullscreen.load(std::memory_order_relaxed);
+            if (wantTopmost && !fullNow && (wasFull || now - lastTopCheck > 1.0)) {
+                lastTopCheck = now;
+                EnsureTopmost(hwnd);
+                if (HWND pages = g_pagesWindow.load(); pages && IsWindowVisible(pages)) {
+                    SetWindowPos(hwnd, pages, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+                }
+            }
+            wasFull = fullNow;
+        }
 
         const float opened = kSide ? std::clamp(height.value / 500.0f - 1.0f, 0.0f, 1.0f)
                                    : std::clamp((height.value - closedH) / std::max(1.0f, openH - closedH), 0.0f, 1.0f);
@@ -1332,7 +1377,7 @@ DWORD WINAPI ThreadProc(LPVOID) {
                                                           now - lastPaint > 30.0));
         const bool changed = !(look == painted) || origin.x != paintedOrigin.x || origin.y != paintedOrigin.y ||
                              std::memcmp(&pill, &paintedPill, sizeof(pill)) != 0 || closedShown != paintedShown ||
-                             text != paintedText || pageChanged || now - lastPaint > 2.0 ||
+                             text != paintedText || pageChanged || now - lastPaint > 2.0 || renderer.deckPageMoving_ ||
                              (contentShown > 0.0f && renderer.characterDue_ > 0.0 && now >= renderer.characterDue_);
         if (!hidden && changed) {
             SharedState snapshot;
@@ -1368,6 +1413,7 @@ DWORD WINAPI ThreadProc(LPVOID) {
             frame.now = now;
             if (renderer.RenderDeck(hwnd, snapshot, settings, frame, now)) {
                 scroll = std::clamp(scroll, 0.0f, renderer.deckScrollMax_);
+                scrollGoal = std::clamp(scrollGoal, 0.0f, renderer.deckScrollMax_);
                 paintedPage = page;
                 paintedData = pageData;
                 paintedEditSig = editSig;

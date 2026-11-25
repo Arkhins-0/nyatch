@@ -79,69 +79,6 @@ public sealed class Stopwatch2
     }
 }
 
-/// <summary>Focus and break turns: a few focus turns (four, unless set otherwise), then a long break.</summary>
-public sealed class Pomodoro
-{
-    public static readonly TimeSpan Focus = TimeSpan.FromMinutes(25);
-    public static readonly TimeSpan ShortBreak = TimeSpan.FromMinutes(5);
-    public static readonly TimeSpan LongBreak = TimeSpan.FromMinutes(15);
-
-    /// <summary>How long each turn is, and how many focus turns come before a long break.</summary>
-    public TimeSpan FocusLength { get; private set; } = Focus;
-    public TimeSpan ShortBreakLength { get; private set; } = ShortBreak;
-    public TimeSpan LongBreakLength { get; private set; } = LongBreak;
-    public int Rounds { get; private set; } = 4;
-
-    /// <summary>
-    /// New lengths. A turn under way (or paused part-way) keeps its own; a first focus turn that has
-    /// not started takes the new length at once.
-    /// </summary>
-    public void Configure(TimeSpan focus, TimeSpan shortBreak, TimeSpan longBreak, int rounds)
-    {
-        var untouched = !OnBreak && !Clock.Running && Clock.Left(DateTime.MinValue) == Clock.Length;
-        FocusLength = focus;
-        ShortBreakLength = shortBreak;
-        LongBreakLength = longBreak;
-        Rounds = Math.Max(1, rounds);
-        if (untouched && Clock.Length != focus) Clock.Reset(focus);
-    }
-
-    public Countdown Clock { get; } = new(Focus);
-    public bool OnBreak { get; private set; }
-    /// <summary>Focus turns finished since the last long break.</summary>
-    public int Done { get; private set; }
-
-    /// <summary>Move to the next turn once the clock has run out. Returns what just ended, or null.</summary>
-    public string? Advance(DateTime now)
-    {
-        if (!Clock.TakeFinished(now)) return null;
-        string ended;
-        if (OnBreak)
-        {
-            ended = "Break over";
-            OnBreak = false;
-            Clock.Reset(FocusLength);
-        }
-        else
-        {
-            ended = "Focus turn done";
-            Done++;
-            OnBreak = true;
-            var longBreak = Done % Rounds == 0;
-            Clock.Reset(longBreak ? LongBreakLength : ShortBreakLength);
-        }
-        Clock.Start(now);
-        return ended;
-    }
-
-    public void Reset()
-    {
-        OnBreak = false;
-        Done = 0;
-        Clock.Reset(FocusLength);
-    }
-}
-
 public sealed record Todo(string Id, string Text, bool Done);
 
 /// <summary>A named list of to-dos, such as "Today" or "Work".</summary>

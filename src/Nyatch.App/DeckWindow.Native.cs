@@ -30,6 +30,14 @@ internal sealed partial class DeckWindow
         return brush;
     }
 
+    /// <summary>The code the island sends with a click for the page it was made on (its PageCode, worked out alike).</summary>
+    private static int PageCode(string page)
+    {
+        uint h = 17;
+        foreach (var c in page) h = unchecked(h * 31u + c);
+        return (int)(h & 0x3FFFFFFFu) | 1;
+    }
+
     private void StartNativeOutline()
     {
         Island.DeckSetHost((what, x, y) => Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>
@@ -54,8 +62,10 @@ internal sealed partial class DeckWindow
                     if (_expanded && x >= 0 && x < _turnCount) ShowTab(x, x > _tab ? 1 : -1);
                     break;
                 case 7:
-                    // A button on a page the island draws.
+                    // A button on a page the island draws. A click made on a page that is no longer on show is dropped:
+                    // its number would be taken as one of this page's buttons (a click on Notes starting the timer).
                     if (_tab < 0 || _tab >= _tabs.Count) break;
+                    if (y != 0 && y != PageCode(_tabs[_tab].Native ?? "")) break;
                     if (_tabs[_tab].Native == "focus") FocusAction(x);
                     else if (_tabs[_tab].Native == "apps") AppsAction(x);
                     else if (_tabs[_tab].Native == "clipboard") ClipboardAction(x);
@@ -87,6 +97,14 @@ internal sealed partial class DeckWindow
                 case 6:
                     // The wheel turned past the end of a page the island draws.
                     if (_expanded && _tabs.Count > 0) ShowTab(TurnFrom(_tab, x > 0), x > 0 ? 1 : -1);
+                    break;
+                case 11:
+                    // The top notch's Focus Timer menu: it works the Focus page's timer.
+                    FocusMenu(x);
+                    break;
+                case 12:
+                    // The ringing timer's or alarm's buttons on the top notch: 1 again (or snooze), 2 stop.
+                    _ringer?.Press(again: x == 1);
                     break;
             }
         }));

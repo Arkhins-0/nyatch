@@ -587,9 +587,9 @@ internal sealed partial class SettingsWindow
     }
 
     /// <summary>A text box in the window's look, saved on Enter or on moving on.</summary>
-    private Border TextField(string value, double width, string hint, Func<string, bool> accept)
+    private Border TextField(string value, double width, string hint, Func<string, bool> accept, int maxLength = 0)
     {
-        var box = new TextBox { Text = value };
+        var box = new TextBox { Text = value, MaxLength = maxLength };
         var frame = Field(box, "", hint);
         frame.Width = width;
         frame.VerticalAlignment = VerticalAlignment.Center;

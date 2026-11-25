@@ -124,6 +124,23 @@ internal static class Island
 
     public static void DeckSetText(string text) => NyatchDeckSetText(text);
 
+    /// <summary>A setting the top notch's right-click menu changed: its name, and its value ("" for the default).</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall, CharSet = CharSet.Unicode)]
+    public delegate void SettingChangeHandler([MarshalAs(UnmanagedType.LPWStr)] string name, [MarshalAs(UnmanagedType.LPWStr)] string value);
+
+    [DllImport(Library, ExactSpelling = true)]
+    private static extern void NyatchSetChangeHost(SettingChangeHandler? handler);
+
+    // Kept here so the delegate the island calls is never collected.
+    private static SettingChangeHandler? _changeHandler;
+
+    /// <summary>Called on the island's thread: pass it on to the app's.</summary>
+    public static void SetChangeHost(SettingChangeHandler handler)
+    {
+        _changeHandler = handler;
+        NyatchSetChangeHost(handler);
+    }
+
     public static void DeckOpen(bool open) => NyatchDeckOpen(open ? 1 : 0);
 
     [DllImport(Library, ExactSpelling = true)]
@@ -152,6 +169,18 @@ internal static class Island
 
     /// <summary>What the native page on show displays (the Focus page's clocks).</summary>
     public static void DeckSetPageData(string data) => NyatchDeckSetPageData(data);
+
+    [DllImport(Library, ExactSpelling = true, CharSet = CharSet.Unicode)]
+    private static extern void NyatchSetRinging(string? title);
+
+    /// <summary>The top notch shows what rings ("Timer finished") with Enter and Space, until it is told null.</summary>
+    public static void SetRinging(string? title) => NyatchSetRinging(title);
+
+    [DllImport(Library, ExactSpelling = true)]
+    private static extern void NyatchSetFocusState(int state);
+
+    /// <summary>How the Focus page's Pomodoro is, for the top notch's menu: 0 not started, 1 running, 2 paused.</summary>
+    public static void SetFocusState(int state) => NyatchSetFocusState(state);
 
     [DllImport(Library, ExactSpelling = true, CharSet = CharSet.Unicode)]
     private static extern int NyatchDeckEditText(int which, [Out] char[]? buffer, int capacity);

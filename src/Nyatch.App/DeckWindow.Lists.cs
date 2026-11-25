@@ -18,7 +18,7 @@ internal sealed partial class DeckWindow
     /// <summary>What the Notes page shows on its right: a to-do list or a note, by id.</summary>
     private (bool IsList, string? Id) _pick = (true, null);
 
-    /// <summary>The list being renamed in the left column, and the name typed so far.</summary>
+    /// <summary>The list or note being renamed in the left column (by id), and the name typed so far.</summary>
     private string? _renaming;
     private string _renameDraft = "";
 
@@ -58,7 +58,7 @@ internal sealed partial class DeckWindow
 
         // A note that has been deleted falls back to the first list.
         if (!_pick.IsList && PickedNote() is null) _pick = (true, null);
-        if (_renaming is not null && _deck.List(_renaming) is null) _renaming = null;
+        if (_renaming is not null && _deck.List(_renaming) is null && _deck.Pages.All(n => n.Id != _renaming)) _renaming = null;
 
         // ----- Left: the to-do lists, then the notes -----
         Add("S", "TO-DOS", Act(() =>
@@ -73,7 +73,7 @@ internal sealed partial class DeckWindow
         {
             if (list.Id == _renaming)
             {
-                Add("W", _renameDraft);
+                Add("W", _renameDraft, "List name", list.Id);
                 continue;
             }
             var open = list.Items.Count(t => !t.Done);
@@ -81,9 +81,9 @@ internal sealed partial class DeckWindow
             {
                 _pick = (true, list.Id);
                 SendNativeData();
-            }, () => DeleteList(list));
+            }, () => StartRename(list));
             var rename = Act(() => StartRename(list));
-            Add("R", list.Name, open > 0 ? open.ToString(CultureInfo.CurrentCulture) : "", ReferenceEquals(list, pickedList), select, rename);
+            Add("R", list.Name, open > 0 ? open.ToString(CultureInfo.CurrentCulture) : "", ReferenceEquals(list, pickedList), select, rename, Act(() => DeleteList(list)));
         }
 
         Add("S", "NOTES", Act(() =>
@@ -98,12 +98,19 @@ internal sealed partial class DeckWindow
         if (_deck.Pages.Count == 0) Add("E", "No notes yet");
         foreach (var note in _deck.Pages)
         {
+            if (note.Id == _renaming)
+            {
+                Add("W", _renameDraft, "Note name", note.Id);
+                continue;
+            }
+            // A right-click or a double-click renames it, as a list.
             var select = Act(() =>
             {
                 _pick = (false, note.Id);
                 SendNativeData();
-            }, () => DeleteNote(note));
-            Add("R", note.Title, When(note.Changed), ReferenceEquals(note, pickedNote), select, -1);
+            }, () => StartRename(note));
+            var rename = Act(() => StartRename(note));
+            Add("R", note.Title, When(note.Changed), ReferenceEquals(note, pickedNote), select, rename, Act(() => DeleteNote(note)));
         }
 
         // ----- Right: a to-do list, or a note -----
@@ -111,19 +118,13 @@ internal sealed partial class DeckWindow
         {
             var all = shown.Items;
             var left = all.Count(t => !t.Done);
-            var tidy = all.Any(t => t.Done)
-                ? Act(() =>
-                {
-                    _deck.ClearDone(shown.Id);
-                    SaveSoon();
-                    SendNativeData();
-                })
-                : -1;
-            Add("L", shown.Name, all.Count == 0 ? "" : left == 0 ? "all done" : $"{left} left", tidy, Act(() => StartRename(shown)));
+            // No button in the head: each to-do is removed on its own, and a list from its row in the left column.
+            Add("L", shown.Name, all.Count == 0 ? "" : left == 0 ? "all done" : $"{left} left", -1, Act(() => StartRename(shown)));
             Add("A", _todoDraft);
             if (all.Count == 0) Add("X", "Nothing on this list yet.");
-            // Still to do first, then the done ones.
-            foreach (var todo in all.Where(t => !t.Done).Concat(all.Where(t => t.Done)))
+
+            // In the order they were added: checking one off leaves it where it is.
+            foreach (var todo in all)
             {
                 var toggle = Act(() =>
                 {
@@ -142,22 +143,39 @@ internal sealed partial class DeckWindow
         }
         else if (pickedNote is { } note)
         {
-            Add("N", "Edited " + When(note.Changed), Act(() => DeleteNote(note)), note.Text);
+            // The note's id tells the island's text box which note it is editing (it takes another one's text when it changes).
+            Add("N", "Edited " + When(note.Changed), Act(() => DeleteNote(note)), note.Text, note.Id);
         }
         return string.Join('\u001E', records);
     }
 
-    private void StartRename(TodoList list)
+    private void StartRename(TodoList list) => StartRename(list.Id, list.Name);
+
+    /// <summary>A note's name is its first line; an empty note starts with none.</summary>
+    private void StartRename(Note note) => StartRename(note.Id, note.Text.Trim().Length == 0 ? "" : note.Title);
+
+    private void StartRename(string id, string name)
     {
-        _renaming = list.Id;
-        _renameDraft = list.Name;
+        _renaming = id;
+        _renameDraft = name;
         SendNativeData();
         Island.DeckFocusField(RenameBox);
     }
 
+    /// <summary>Renaming a note changes its first line; the rest of it stays as it is.</summary>
+    private void RenameNote(Note note, string name)
+    {
+        name = name.Replace('\r', ' ').Replace('\n', ' ').Trim();
+        if (name.Length == 0) return;
+        var text = note.Text.TrimStart();
+        var end = text.IndexOf('\n');
+        _deck.SetNote(note.Id, name + (end >= 0 ? text[end..] : ""), DateTime.Now);
+    }
+
+    // Deleted at once: a confirmation box opened behind the notch, where it could not be seen, so a click
+    // on the bin seemed to do nothing.
     private void DeleteList(TodoList list)
     {
-        if (list.Items.Count > 0 && MessageBox.Show($"Delete the list “{list.Name}” and its {list.Items.Count} to-do(s)?", "Nyatch", MessageBoxButton.OKCancel, MessageBoxImage.Question) != MessageBoxResult.OK) return;
         _deck.RemoveList(list.Id);
         SaveSoon();
         SendNativeData();
@@ -165,7 +183,6 @@ internal sealed partial class DeckWindow
 
     private void DeleteNote(Note note)
     {
-        if (note.Text.Trim().Length > 0 && MessageBox.Show($"Delete the note “{note.Title}”?", "Nyatch", MessageBoxButton.OKCancel, MessageBoxImage.Question) != MessageBoxResult.OK) return;
         _deck.RemoveNote(note.Id);
         SaveSoon();
         SendNativeData();
@@ -209,12 +226,16 @@ internal sealed partial class DeckWindow
                 _renameDraft = Island.DeckEditText();
                 break;
             case RenameBox when what is 1 or 7 && _renaming is { } id:
+            {
                 // Enter, or a click elsewhere, keeps the name; Esc does not.
                 _renaming = null;
-                _deck.RenameList(id, what == 1 ? Island.DeckEditText(submitted: true) : _renameDraft);
+                var name = what == 1 ? Island.DeckEditText(submitted: true) : _renameDraft;
+                if (_deck.Pages.Find(n => n.Id == id) is { } renamed) RenameNote(renamed, name);
+                else _deck.RenameList(id, name);
                 SaveSoon();
                 SendNativeData();
                 break;
+            }
             case RenameBox when what == 2:
                 _renaming = null;
                 SendNativeData();

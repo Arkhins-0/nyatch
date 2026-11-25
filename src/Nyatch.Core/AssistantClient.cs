@@ -30,6 +30,14 @@ public sealed class AssistantClient
         {
             switch (engine)
             {
+                case AssistantEngine.Claude when turns.Any(t => t.Files?.Any(f => f.Data.Length > 0) == true):
+                    // With pictures or PDFs: Anthropic's message request over HTTPS, the files as parts.
+                    await AskOverHttp(engine, model, Request(Assistant.ClaudeUrl, Assistant.ClaudeBody(model, turns, own, prompt), r =>
+                    {
+                        r.Headers.Add("x-api-key", key);
+                        r.Headers.Add("anthropic-version", "2023-06-01");
+                    }), Assistant.ClaudeDelta, onText, null, cancel);
+                    return "";
                 case AssistantEngine.Claude:
                     await AskClaude(model, key, turns, onText, cancel, own, prompt);
                     return "";

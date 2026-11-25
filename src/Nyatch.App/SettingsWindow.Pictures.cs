@@ -131,18 +131,37 @@ internal sealed partial class SettingsWindow
                 break;
             }
             case "focus":
-                for (var i = 0; i < 3; i++)
+                // The timer and the stopwatch: a ring each, and their buttons.
+                for (var i = 0; i < 2; i++)
                 {
                     var x = L + i * 70;
                     Box(c, x, T + 6, 64, 114, PicRaised, 9);
                     var ring = new Ellipse { Width = 44, Height = 44, Stroke = PicStrong, StrokeThickness = 4 };
                     Place(c, ring, x + 10, T + 20);
-                    var arc = new Ellipse { Width = 44, Height = 44, Stroke = accent, StrokeThickness = 4, StrokeDashArray = [i == 0 ? 18 : i == 1 ? 8 : 24, 100], StrokeDashCap = PenLineCap.Round };
+                    var arc = new Ellipse { Width = 44, Height = 44, Stroke = accent, StrokeThickness = 4, StrokeDashArray = [i == 0 ? 18 : 8, 100], StrokeDashCap = PenLineCap.Round };
                     Place(c, arc, x + 10, T + 20);
                     Words(c, x + 18, T + 39, 28, 5, PicInk);
                     Box(c, x + 8, T + 76, 22, 14, i == 0 ? accent : PicStrong, 4);
                     Box(c, x + 34, T + 76, 22, 14, PicStrong, 4);
                     if (i == 0) Box(c, x + 8, T + 96, 48, 14, PicStrong, 4);
+                }
+                // The alarms: the next one, then a row each with its switch.
+                {
+                    var x = L + 140;
+                    Box(c, x, T + 6, 64, 114, PicRaised, 9);
+                    Words(c, x + 20, T + 13, 24, 4);
+                    Box(c, x + 50, T + 10, 10, 10, PicStrong, 3);
+                    Words(c, x + 12, T + 26, 40, 4, accent);
+                    for (var i = 0; i < 3; i++)
+                    {
+                        var y = T + 36 + i * 26;
+                        Box(c, x + 4, y, 56, 22, PicStrong, 5);
+                        Words(c, x + 9, y + 6, 22, 5, i == 2 ? PicSoft : PicInk);
+                        Words(c, x + 9, y + 15, 16, 3);
+                        var on = i < 2;
+                        Box(c, x + 40, y + 7, 16, 9, on ? accent : PicRaised, 4.5);
+                        Box(c, on ? x + 48 : x + 41, y + 8, 7, 7, on ? PicInk : PicSoft, 3.5);
+                    }
                 }
                 break;
             case "notes":

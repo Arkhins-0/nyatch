@@ -43,7 +43,7 @@ internal sealed partial class SettingsWindow
         {
             var off = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
             off.Children.Add(Chip("Quick Lookup is off", _faint, _high, margin: new Thickness(0, 0, 8, 0)));
-            off.Children.Add(LinkChip("Tools", () => OpenPage("tools")));
+            off.Children.Add(LinkChip("Quick Lookup", () => OpenPage("search")));
             lookupWords.Children.Add(off);
         }
 

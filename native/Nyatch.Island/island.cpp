@@ -413,6 +413,10 @@ std::atomic<float> g_mediaHitScale{1.0f};
 std::atomic<float> g_mediaHitTrim{0.0f};  // content px of lyrics panel to the right of the player
 std::atomic<unsigned long long> g_mediaHitStamp{0};
 
+// Nyatch: the ringing view's two buttons (again or snooze, and stop), where they were last drawn, in the island
+// window's own pixels (what a click's lParam gives). Render thread writes, window procedure reads (same thread).
+D2D1_RECT_F g_ringAgainRect = {}, g_ringStopRect = {};
+
 struct MediaContentPoint {
     bool valid = false;
     float x = 0.0f;        // relative to the content rect's left edge
@@ -868,6 +872,10 @@ struct VolumeSnapshot {
     float displayPercent = 0.0f;  // animated bar level, set only on the render loop's snapshot copy
 };
 
+// Nyatch: until when a quick bar (the volume, the brightness) is on show: the top notch shows it even over a
+// full-screen app, as Windows' own does.
+std::atomic<double> g_quickBarUntil{0.0};
+
 struct BrightnessSnapshot {
     bool active = false;
     int percent = 0;
@@ -891,6 +899,9 @@ struct TimerSnapshot {
     double remainingAtPause = 0.0;
     bool justFinished = false;
     double finishedExpiresAt = 0.0;
+    // Nyatch: a timer or an alarm of the app's is ringing: shown first, until the app stops it.
+    bool ringing = false;
+    std::wstring ringTitle;
 };
 
 enum class DeviceEventType {
@@ -2688,6 +2699,7 @@ void LoadSettings() {
     const std::wstring clockMode = GetStringSettingCopy(L"Modules.ClockFormat");
     next.clockFollowSystem = clockMode.empty() || EqualsNoCase(clockMode, L"system");
     next.clockNote = GetStringSettingCopy(L"Modules.ClockNote");
+    if (next.clockNote.size() > 50) next.clockNote.resize(50);  // two lines of about 25 characters
     next.characters = Wh_GetIntSetting(L"Characters.Enabled") != 0;
     next.characterPack = GetStringSettingCopy(L"Characters.Pack");
     next.characterStamp = GetStringSettingCopy(L"Characters.Stamp");
@@ -2760,13 +2772,14 @@ void LoadSettings() {
     next.gameOverlayShowDisk = Wh_GetIntSetting(L"Modules.GameOverlayShowDisk") != 0;
     next.gameOverlayCompact = Wh_GetIntSetting(L"Modules.GameOverlayCompact") != 0;
     next.tintOpacity = Clamp(Wh_GetIntSetting(L"Themes.TintIntensity") / 100.0f, 0.0f, 1.0f);
+    // Nyatch: the settings alone decide. The right-click menu changes them through the app (ChangeSetting),
+    // so the Settings window and the second notch see the same; overrides kept here by older versions are
+    // not read any more (they hid the settings).
     const int settingOpacity = Wh_GetIntSetting(L"Themes.PillOpacity");
-    const int localOpacity = Wh_GetIntValue(L"PillOpacityOverride", -1);
-    g_pillOpacityOverride.store(localOpacity);
+    g_pillOpacityOverride.store(-1);
     g_gameOverlayPinned.store(Wh_GetIntValue(L"GameOverlayPinned", 0) != 0);
     g_pinnedExpanded.store(Wh_GetIntValue(L"PinnedExpanded", 0) != 0);
-    next.pillOpacity = Clamp((localOpacity >= 0 ? localOpacity : settingOpacity) / 100.0f,
-                             0.35f, 1.0f);
+    next.pillOpacity = Clamp(settingOpacity / 100.0f, 0.35f, 1.0f);
     next.gameOverlay = Wh_GetIntSetting(L"Modules.GameOverlay") != 0;
     next.showMetricText = Wh_GetIntSetting(L"Modules.ShowMetricText") != 0;
     next.weather = Wh_GetIntSetting(L"Modules.Weather") != 0;
@@ -2826,23 +2839,11 @@ void LoadSettings() {
         const std::wstring anchor = GetStringSettingCopy(L"Side.Anchor");
         next.sideAnchor = anchor == L"top" ? 0 : anchor == L"bottom" ? 2 : 1;
     }
-    const int localExpandOnHover = Wh_GetIntValue(L"ExpandOnHoverOverride", -1);
-    next.expandOnHover = localExpandOnHover >= 0 ? (localExpandOnHover != 0) : (Wh_GetIntSetting(L"Behavior.ExpandOnHover") != 0);
+    next.expandOnHover = Wh_GetIntSetting(L"Behavior.ExpandOnHover") != 0;
     // Right-click toggle; stored with Wh_SetIntValue so it survives restarts.
     next.collapsedLyrics = Wh_GetIntValue(L"CollapsedLyrics", 0) != 0;
     next.lyricsPinnedFirst = Wh_GetIntValue(L"LyricsPinnedFirst", 0) != 0;
-    {
-        // Right-click choice wins until the Mod Settings value is changed.
-        const int mediaTabLyricsSetting = Wh_GetIntSetting(L"Modules.MediaTabLyrics") != 0 ? 1 : 0;
-        int mediaTabLyricsOverride = Wh_GetIntValue(L"MediaTabLyricsOverride", -1);
-        if (mediaTabLyricsOverride >= 0 &&
-            Wh_GetIntValue(L"MediaTabLyricsOverrideBase", -1) != mediaTabLyricsSetting) {
-            Wh_SetIntValue(L"MediaTabLyricsOverride", -1);
-            mediaTabLyricsOverride = -1;
-        }
-        next.mediaTabLyrics = mediaTabLyricsOverride >= 0 ? (mediaTabLyricsOverride != 0)
-                                                          : (mediaTabLyricsSetting != 0);
-    }
+    next.mediaTabLyrics = Wh_GetIntSetting(L"Modules.MediaTabLyrics") != 0;
     next.autoDpiScale = Wh_GetIntSetting(L"Appearance.AutoDpiScale") != 0;
     next.offsetX = Wh_GetIntSetting(L"Appearance.OffsetX");
     next.offsetY = Wh_GetIntSetting(L"Appearance.OffsetY");
@@ -2850,21 +2851,9 @@ void LoadSettings() {
     next.offsetYExpanded = Wh_GetIntSetting(L"Appearance.OffsetYExpanded");
 
 
-    std::wstring shapeStr = GetStringSettingCopy(L"Appearance.ShapeStyle");
-    static std::wstring s_lastConfiguredShape = L"";
-    if (!shapeStr.empty() && shapeStr != s_lastConfiguredShape) {
-        s_lastConfiguredShape = shapeStr;
-        Wh_SetIntValue(L"W11StyleOverride", -1);
-        Wh_SetIntValue(L"NotchStyleOverride", -1);
-    }
-    bool baseW11 = EqualsNoCase(shapeStr, L"w11");
-    bool baseNotch = EqualsNoCase(shapeStr, L"notch");
-
-    const int localW11Style = Wh_GetIntValue(L"W11StyleOverride", -1);
-    next.w11Style = localW11Style >= 0 ? (localW11Style != 0) : baseW11;
-
-    const int localNotchStyle = Wh_GetIntValue(L"NotchStyleOverride", -1);
-    next.notchStyle = localNotchStyle >= 0 ? (localNotchStyle != 0) : baseNotch;
+    const std::wstring shapeStr = GetStringSettingCopy(L"Appearance.ShapeStyle");
+    next.w11Style = EqualsNoCase(shapeStr, L"w11");
+    next.notchStyle = EqualsNoCase(shapeStr, L"notch");
 
     // A bottom-anchored island cannot be a top-edge macOS notch.
     if (IsBottomPosition(next.position)) {
@@ -2934,40 +2923,13 @@ void LoadSettings() {
             ColorFromHex(p.border, D2D1::ColorF(0.118f, 0.118f, 0.133f, 1.0f)));
     };
 
-    std::wstring themePresetStr = GetStringSettingCopy(L"Themes.ThemePreset");
-    // The active palette is persisted as an integer so the right-click menu can
-    // change it without rewriting the settings file. Migrate the old key across
-    // once, since the integers were renumbered when the palettes changed.
-    if (Wh_GetIntValue(kThemeValueName, -1) < 0) {
-        const int legacy = Wh_GetIntValue(kLegacyThemeValueName, -1);
-        if (legacy >= 0) {
-            int migrated;
-            switch (legacy) {
-                case 0:  migrated = 0; break;                  // OLED Black    -> Obsidian
-                case 1:  migrated = 1; break;                  // Fluent        -> Graphite
-                case 2:  migrated = 2; break;                  // Midnight Blue -> Slate
-                case 3:  migrated = 6; break;                  // Deep Purple   -> Plum
-                case 4:  migrated = 1; break;                  // Fluent Design -> Graphite
-                default: migrated = kCustomThemeIndex; break;   // out of range meant Custom
-            }
-            Wh_SetIntValue(kThemeValueName, migrated);
-        }
-    }
-
-    static std::wstring s_lastConfiguredPreset = L"";
-    if (!themePresetStr.empty() && themePresetStr != s_lastConfiguredPreset) {
-        s_lastConfiguredPreset = themePresetStr;
-        const int fromSettings = ThemeIndexFromId(themePresetStr);
-        if (fromSettings >= 0) {
-            Wh_SetIntValue(kThemeValueName, fromSettings);
-        }
-    }
-
-    const int theme = Wh_GetIntValue(kThemeValueName, -1);
+    // Nyatch: the palette is the setting's (the right-click menu changes the setting, through the app).
+    const std::wstring themePresetStr = GetStringSettingCopy(L"Themes.ThemePreset");
+    const int theme = EqualsNoCase(themePresetStr, L"custom") ? kCustomThemeIndex : ThemeIndexFromId(themePresetStr);
     if (theme >= 0 && theme < kCustomThemeIndex) {
         next.themePreset = static_cast<ThemePreset>(theme);
         applyPreset(next, theme);
-    } else if (theme >= kCustomThemeIndex || EqualsNoCase(themePresetStr, L"custom")) {
+    } else if (theme >= kCustomThemeIndex) {
         // Explicit Custom: the hex fields are authoritative, defaults included.
         next.themePreset = ThemePreset::Custom;
         next.pillBgColor = ColorFromHex(GetStringSettingCopy(L"Themes.PillBgColor"),
@@ -2988,7 +2950,8 @@ void LoadSettings() {
     // Graphite inherits the old Fluent theme's auto-translucency: it is the
     // neutral Windows 11 grey, and it reads best when the desktop shows through
     // a little. The rest of the palettes are opaque unless the user says so.
-    if (next.themePreset == ThemePreset::Graphite && localOpacity < 0) {
+    // (Only while the opacity is left at its default, so the Settings slider still decides.)
+    if (next.themePreset == ThemePreset::Graphite && settingOpacity == 96) {
         next.pillOpacity = 0.88f;
     }
 
@@ -3030,18 +2993,11 @@ void LoadSettings() {
     }
     next.clockAccentGlow = Wh_GetIntSetting(L"Themes.ClockAccentGlow") != 0;
     bool settingsChangedWhileHidden = (g_autoHiddenParked.load() || g_manuallyHidden.load());
-    bool unhideRequested = (next.autoHideIdleSeconds == 0) ||
-                           (next.unhideOnHover && !g_settings.unhideOnHover);
-    if (unhideRequested || (settingsChangedWhileHidden && next.autoHideIdleSeconds == 0)) {
-        g_autoHiddenParked = false;
-        g_manuallyHidden = false;
-        Wh_SetIntValue(L"ManuallyHidden", 0);
-        g_hotkeyUnhideUntil.store(NowSeconds() + (next.autoHideIdleSeconds > 0 ? next.autoHideIdleSeconds : 6.0));
-        if (g_hwnd) {
-            ShowWindow(g_hwnd, SW_SHOWNOACTIVATE);
-            PostMessageW(g_hwnd, WM_APP_NEW_EVENT, 0, 0);
-        }
-    } else if (settingsChangedWhileHidden && next.unhideOnHover) {
+    // Nyatch: shown again only when a hiding setting changed, not on every settings save (which brought a
+    // notch hidden from the menu straight back).
+    const bool idleHideTurnedOff = next.autoHideIdleSeconds == 0 && g_settings.autoHideIdleSeconds != 0;
+    bool unhideRequested = idleHideTurnedOff || (next.unhideOnHover && !g_settings.unhideOnHover);
+    if (unhideRequested) {
         g_autoHiddenParked = false;
         g_manuallyHidden = false;
         Wh_SetIntValue(L"ManuallyHidden", 0);
@@ -3051,6 +3007,7 @@ void LoadSettings() {
             PostMessageW(g_hwnd, WM_APP_NEW_EVENT, 0, 0);
         }
     }
+    (void)settingsChangedWhileHidden;
 
     // Privacy Indicators: unified reading with complete fallback to legacy keys
     next.privacyDots = Wh_GetIntSetting(L"Indicators.PrivacyDots") != 0;
@@ -3070,8 +3027,7 @@ void LoadSettings() {
     next.micDotColor = next.privacyDotsMicHex;
     next.camDotColor = next.privacyDotsCamHex;
 
-    g_pinnedExpanded.store(false);
-    Wh_SetIntValue(L"PinnedExpanded", 0);
+    // (Pinned open stays pinned through a settings change: it is the menu's to undo.)
 
     // Compare-then-publish under one lock so the change flags describe exactly
     // the transition we are about to commit. Two LoadSettings() calls can run
@@ -5735,6 +5691,8 @@ NTSTATUS NTAPI WnfDndCallback(
             g_state.doNotDisturb.enabled = active;
             g_state.doNotDisturb.expiresAt = NowSeconds() + 3.0;
         }
+        // Shown over a full-screen app too (going full screen is often what turns it on).
+        g_quickBarUntil = NowSeconds() + 3.0;
         TriggerNudge();
     }
     return 0;
@@ -9157,6 +9115,7 @@ void ApplyVolumeReading(float level, bool muted, bool canSurface) {
             g_state.volume.muted = muted;
             g_state.volume.deviceName = L"System audio";
             g_state.volume.expiresAt = NowSeconds() + 1.8;
+            g_quickBarUntil = g_state.volume.expiresAt;
         }
     }
 
@@ -9491,6 +9450,7 @@ void UpdateBrightnessSnapshot() {
         g_state.brightness.active = true;
         g_state.brightness.percent = level;
         g_state.brightness.expiresAt = NowSeconds() + 1.8;
+        g_quickBarUntil = g_state.brightness.expiresAt;
         TriggerNudge();
     }
     g_lastBrightness = level;
@@ -10544,6 +10504,16 @@ std::atomic<bool> g_assistantReady{false};
 // 2 = picked from the recent list (the host answers from what it saved).
 std::atomic<void(__stdcall*)(uint64_t, const wchar_t*, int)> g_hostAsk{nullptr};
 std::atomic<void(__stdcall*)()> g_hostClearHistory{nullptr};
+// Nyatch: the app's handler for a setting changed here (the right-click menu): it saves it as the Settings
+// window does, so both notches and the window agree. An empty value puts the setting back to its default.
+std::atomic<void(__stdcall*)(const wchar_t*, const wchar_t*)> g_hostChange{nullptr};
+
+bool ChangeSetting(const wchar_t* name, const std::wstring& value) {
+    auto host = g_hostChange.load();
+    if (!host) return false;
+    host(name, value.c_str());
+    return true;
+}
 
 AssistantEngine ChosenAssistant() {
     return static_cast<AssistantEngine>(g_assistantEngine.load());
@@ -12875,10 +12845,28 @@ void ShowMediaSourcePopup(HWND hwnd, POINT screenPoint) {
     ApplyMediaSourceMenuCommand(cmd, items);
 }
 
+// Nyatch: the Focus Timer items act on the second notch's Pomodoro (its Focus page), which the app keeps:
+// they are sent to it as deck event 11 (x: 30 25 min focus, 31 50 min focus, 32 5 min break, 33 pause or
+// resume, 34 stop), and it tells back how the Pomodoro is (0 not started, 1 running, 2 paused). Without the
+// second notch, the island's own timer does it, as before.
+namespace DeckNative {
+void Notify(int what, int x, int y);
+bool FocusHost();
+}
+std::atomic<int> g_focusState{0};
+std::atomic<bool> g_ringing{false};  // a timer or alarm of the app's is ringing (shown even over a full-screen app)
+
+// Nyatch: what the top notch shows even over a full-screen app: a timer or alarm ringing, the volume or brightness bar.
+bool ShownOverFullscreen() { return g_ringing.load() || NowSeconds() < g_quickBarUntil.load(); }
+
 void ShowContextMenu(HWND hwnd, POINT screenPoint) {
     bool timerActive = false;
     bool timerRunning = false;
-    {
+    if (DeckNative::FocusHost()) {
+        const int focus = g_focusState.load();
+        timerActive = focus != 0;
+        timerRunning = focus == 1;
+    } else {
         std::lock_guard lock(g_stateMutex);
         timerActive = g_state.timer.active;
         timerRunning = g_state.timer.running;
@@ -12919,29 +12907,26 @@ void ShowContextMenu(HWND hwnd, POINT screenPoint) {
                     clearLabel.c_str());
         AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(trayMenu), Loc(L"File Tray"));
     }
-    AppendMenuW(menu, MF_STRING, 2, L"Pin expanded");
-    AppendMenuW(menu, MF_STRING, 3, g_gameOverlayPinned.load() ? L"Hide game overlay" : L"Show game overlay");
+    // Nyatch: each item shows its real state (ticked while on), and the settings ones change the setting itself.
+    AppendMenuW(menu, MF_STRING | (g_pinnedExpanded.load() ? MF_CHECKED : 0), 2, L"Keep open");
+    const bool overlayOn = g_settings.gameOverlay || g_gameOverlayPinned.load();
+    AppendMenuW(menu, MF_STRING | (overlayOn ? MF_CHECKED : 0), 3, L"Game overlay");
     {
-        // g_settings already reflects any right-click override, so it is the
-        // source of truth for which style is active.
         const int currentShape = g_settings.notchStyle ? 2 : (g_settings.w11Style ? 1 : 0);
         HMENU shapeMenu = CreatePopupMenu();
-        AppendMenuW(shapeMenu, MF_STRING, kShapeMenuIdBase, L"iPhone Pill");
-        AppendMenuW(shapeMenu, MF_STRING, kShapeMenuIdBase + 1, L"Windows 11 Flyout");
+        AppendMenuW(shapeMenu, MF_STRING, kShapeMenuIdBase, L"Pill");
+        AppendMenuW(shapeMenu, MF_STRING, kShapeMenuIdBase + 1, L"Windows 11 box");
         if (IsBottomPosition(g_settings.position)) {
             AppendMenuW(shapeMenu, MF_STRING | MF_GRAYED | MF_DISABLED, kShapeMenuIdBase + 2,
-                        L"macOS Notch (unavailable at bottom)");
+                        L"Notch (not at the bottom)");
         } else {
-            AppendMenuW(shapeMenu, MF_STRING, kShapeMenuIdBase + 2, L"macOS Notch");
+            AppendMenuW(shapeMenu, MF_STRING, kShapeMenuIdBase + 2, L"Notch");
         }
         CheckMenuRadioItem(shapeMenu, kShapeMenuIdBase, kShapeMenuIdBase + 2,
                            kShapeMenuIdBase + static_cast<UINT>(currentShape), MF_BYCOMMAND);
-        AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(shapeMenu), L"Shape style");
+        AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(shapeMenu), L"Shape");
     }
-    const int activeExpandOnHover = Wh_GetIntValue(L"ExpandOnHoverOverride", -1) >= 0
-                          ? Wh_GetIntValue(L"ExpandOnHoverOverride", 0)
-                          : (Wh_GetIntSetting(L"Behavior.ExpandOnHover") != 0);
-    AppendMenuW(menu, MF_STRING, 11, activeExpandOnHover ? L"Expand on Click" : L"Expand on Hover");
+    AppendMenuW(menu, MF_STRING | (g_settings.expandOnHover ? MF_CHECKED : 0), 11, L"Open on hover");
     AppendMenuW(menu, MF_STRING | (Wh_GetIntValue(L"CollapsedLyrics", 0) ? MF_CHECKED : 0), 13,
                 L"Show lyrics on collapsed island");
     AppendMenuW(menu,
@@ -12997,18 +12982,19 @@ void ShowContextMenu(HWND hwnd, POINT screenPoint) {
         }
     }
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
-    const int activeOpacity = g_pillOpacityOverride.load();
+    // The Opacity setting (Themes.PillOpacity, 96 by default).
+    const int activeOpacity = Wh_GetIntSetting(L"Themes.PillOpacity");
     HMENU opacityMenu = CreatePopupMenu();
-    AppendMenuW(opacityMenu, MF_STRING | (activeOpacity == 100 ? MF_CHECKED : 0), 4, L"100% (Opaque)");
+    AppendMenuW(opacityMenu, MF_STRING | (activeOpacity == 100 ? MF_CHECKED : 0), 4, L"100% (solid)");
     AppendMenuW(opacityMenu, MF_STRING | (activeOpacity == 85 ? MF_CHECKED : 0), 5, L"85%");
     AppendMenuW(opacityMenu, MF_STRING | (activeOpacity == 70 ? MF_CHECKED : 0), 6, L"70%");
     AppendMenuW(opacityMenu, MF_STRING | (activeOpacity == 55 ? MF_CHECKED : 0), 7, L"55%");
     AppendMenuW(opacityMenu, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(opacityMenu, MF_STRING | (activeOpacity < 0 ? MF_CHECKED : 0), 8, L"Theme default");
-    AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(opacityMenu), L"Transparency");
+    AppendMenuW(opacityMenu, MF_STRING | (activeOpacity == 96 ? MF_CHECKED : 0), 8, L"Default");
+    AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(opacityMenu), L"Opacity");
     // Color theme presets. Built from kThemePalettes and nested in a submenu:
     // nine palettes listed flat would dominate the root menu.
-    const int activeTheme = Wh_GetIntValue(kThemeValueName, static_cast<int>(g_settings.themePreset));
+    const int activeTheme = static_cast<int>(g_settings.themePreset);
     HMENU themeMenu = CreatePopupMenu();
     for (int i = 0; i < kCustomThemeIndex; ++i) {
         AppendMenuW(themeMenu, MF_STRING | (activeTheme == i ? MF_CHECKED : 0),
@@ -13034,8 +13020,8 @@ void ShowContextMenu(HWND hwnd, POINT screenPoint) {
     // palette to kThemePalettes needs no change here.
     if (cmd >= kThemeMenuIdBase &&
         cmd <= kThemeMenuIdBase + static_cast<UINT>(kCustomThemeIndex)) {
-        Wh_SetIntValue(kThemeValueName, static_cast<int>(cmd - kThemeMenuIdBase));
-        LoadSettings();
+        const int index = static_cast<int>(cmd - kThemeMenuIdBase);
+        ChangeSetting(L"Themes.ThemePreset", index >= kCustomThemeIndex ? std::wstring(L"custom") : std::wstring(kThemePalettes[index].id));
         return;
     }
 
@@ -13058,35 +13044,21 @@ void ShowContextMenu(HWND hwnd, POINT screenPoint) {
             break;
         }
         case 3: {
-            const bool nextVal = !g_gameOverlayPinned.load();
-            g_gameOverlayPinned.store(nextVal);
-            Wh_SetIntValue(L"GameOverlayPinned", nextVal ? 1 : 0);
+            // The Game overlay setting; the old pin is let go either way.
+            const bool on = g_settings.gameOverlay || g_gameOverlayPinned.load();
+            g_gameOverlayPinned.store(false);
+            Wh_SetIntValue(L"GameOverlayPinned", 0);
+            ChangeSetting(L"Modules.GameOverlay", on ? L"false" : L"true");
             break;
         }
         case 4:
-            g_pillOpacityOverride.store(100);
-            Wh_SetIntValue(L"PillOpacityOverride", 100);
-            LoadSettings();
-            break;
         case 5:
-            g_pillOpacityOverride.store(85);
-            Wh_SetIntValue(L"PillOpacityOverride", 85);
-            LoadSettings();
-            break;
         case 6:
-            g_pillOpacityOverride.store(70);
-            Wh_SetIntValue(L"PillOpacityOverride", 70);
-            LoadSettings();
-            break;
         case 7:
-            g_pillOpacityOverride.store(55);
-            Wh_SetIntValue(L"PillOpacityOverride", 55);
-            LoadSettings();
+            ChangeSetting(L"Themes.PillOpacity", cmd == 4 ? L"100" : cmd == 5 ? L"85" : cmd == 6 ? L"70" : L"55");
             break;
         case 8:
-            g_pillOpacityOverride.store(-1);
-            Wh_SetIntValue(L"PillOpacityOverride", -1);
-            LoadSettings();
+            ChangeSetting(L"Themes.PillOpacity", L"");
             break;
         case 9: {
             // Nyatch: open Nyatch's own settings. Starting Nyatch.exe again does
@@ -13112,23 +13084,12 @@ void ShowContextMenu(HWND hwnd, POINT screenPoint) {
             if (wantNotch && IsBottomPosition(g_settings.position)) {
                 break;  // a bottom-anchored island can't be a top-edge notch
             }
-            // Both overrides are written every time, so exactly one style is active.
-            Wh_SetIntValue(L"W11StyleOverride", wantW11 ? 1 : 0);
-            Wh_SetIntValue(L"NotchStyleOverride", wantNotch ? 1 : 0);
-            LoadSettings();
-            g_layoutDirty = true;
-            TriggerNudge();
+            ChangeSetting(L"Appearance.ShapeStyle", wantNotch ? L"notch" : wantW11 ? L"w11" : L"default");
             break;
         }
-        case 11: {
-            const int activeExpandOnHover = Wh_GetIntValue(L"ExpandOnHoverOverride", -1) >= 0
-                                  ? Wh_GetIntValue(L"ExpandOnHoverOverride", 0)
-                                  : (Wh_GetIntSetting(L"Behavior.ExpandOnHover") != 0);
-            Wh_SetIntValue(L"ExpandOnHoverOverride", activeExpandOnHover ? 0 : 1);
-            LoadSettings();
-            g_layoutDirty = true;
+        case 11:
+            ChangeSetting(L"Behavior.ExpandOnHover", g_settings.expandOnHover ? L"false" : L"true");
             break;
-        }
         case 13: {
             Wh_SetIntValue(L"CollapsedLyrics", Wh_GetIntValue(L"CollapsedLyrics", 0) ? 0 : 1);
             LoadSettings();
@@ -13144,29 +13105,27 @@ void ShowContextMenu(HWND hwnd, POINT screenPoint) {
             TriggerNudge();
             break;
         }
-        case 15: {
-            const int mediaTabLyricsSetting = Wh_GetIntSetting(L"Modules.MediaTabLyrics") != 0 ? 1 : 0;
-            Wh_SetIntValue(L"MediaTabLyricsOverride", GetSettingsCopy().mediaTabLyrics ? 0 : 1);
-            Wh_SetIntValue(L"MediaTabLyricsOverrideBase", mediaTabLyricsSetting);
-            LoadSettings();
-            g_layoutDirty = true;
-            TriggerNudge();
+        case 15:
+            ChangeSetting(L"Modules.MediaTabLyrics", GetSettingsCopy().mediaTabLyrics ? L"false" : L"true");
             break;
-        }
         case 30:
-            StartFocusTimer(25, false);
-            break;
         case 31:
-            StartFocusTimer(50, false);
-            break;
         case 32:
-            StartFocusTimer(5, true);
-            break;
         case 33:
-            ToggleTimerPause();
-            break;
         case 34:
-            StopFocusTimer();
+            if (DeckNative::FocusHost()) {
+                DeckNative::Notify(11, static_cast<int>(cmd), 0);
+            } else if (cmd == 30) {
+                StartFocusTimer(25, false);
+            } else if (cmd == 31) {
+                StartFocusTimer(50, false);
+            } else if (cmd == 32) {
+                StartFocusTimer(5, true);
+            } else if (cmd == 33) {
+                ToggleTimerPause();
+            } else {
+                StopFocusTimer();
+            }
             break;
         case 40: {
             // Only reachable while visible (a hidden window can't be
@@ -13718,6 +13677,9 @@ class Renderer {
         double lastTypeAt = -1e9;
         double blinkFrom = 0.0;     // the caret shows steadily for a moment after each key
         bool follow = false;        // scroll to the caret on the next draw
+        // What the box is editing (a note's id), when the same box shows different things: when it changes,
+        // the box takes the new thing's text rather than keeping the old one's.
+        std::wstring owner;
     };
     DeckEdit edit_;
     struct FieldGeo {
@@ -13729,6 +13691,7 @@ class Renderer {
         IDWriteTextFormat* format = nullptr;
         float contentH = 0.0f, contentW = 0.0f, max = 0.0f;
         bool multiline = false;
+        std::wstring owner;  // what it showed when last drawn (see DeckEdit::owner)
     };
     std::map<int, FieldGeo> fields_;
     std::map<int, float> fieldScroll_;
@@ -13906,10 +13869,14 @@ class Renderer {
     }
 
     // A region that stays at its end while it is there (a conversation, as replies come in).
+    // Nyatch: set when a question is sent, so the conversation goes to its end even if it was scrolled up.
+    bool chatToEnd_ = false;
+
     float StickyScroll(int id, float max) {
         float& sc = regionScroll_[id];
         auto prev = regionMaxPrev_.find(id);
-        if (prev == regionMaxPrev_.end() || sc >= prev->second - 2.0f) sc = max;
+        if (prev == regionMaxPrev_.end() || sc >= prev->second - 2.0f || (id == 4 && chatToEnd_)) sc = max;
+        if (id == 4) chatToEnd_ = false;
         regionMaxPrev_[id] = max;
         sc = std::clamp(sc, 0.0f, max);
         return sc;
@@ -14182,19 +14149,29 @@ class Renderer {
             chatPickerRect_ = b;
         }
         if (!picker) DeckText(name, deckTitleFormat_.Get(), D2D1::RectF(head.left, head.top, head.right - 70.0f * u, head.bottom), ink);
+        // Nyatch: on the side panel, an x in the top-right corner closes it (the other buttons move left of it).
+        float headRight = head.right;
+        if (Num(*a, 11) >= 0) {
+            const D2D1_RECT_F closeBox = D2D1::RectF(head.right - 26.0f * u, head.top + 1.0f * u, head.right, head.bottom - 1.0f * u);
+            DeckButton(closeBox, f, ink, false, kDeckApp, Num(*a, 11));
+            DeckText(L"", deckGlyphFormat_.Get(), closeBox, ink, DWRITE_TEXT_ALIGNMENT_CENTER);
+            headRight = closeBox.left - 4.0f * u;
+        }
         if (!hasKey) {
             const float cy = (area.top + area.bottom) * 0.5f - 20.0f * u;
             if (!DeckHer(L"chat", {L"chat-key", L"confused", L"idle"}, HerBox(area, cy + 10.0f * u, 112.0f * u))) DeckText(L"", deckBigGlyphFormat_.Get(), D2D1::RectF(area.left, cy - 26.0f * u, area.right, cy + 10.0f * u), muted, DWRITE_TEXT_ALIGNMENT_CENTER);
-            DeckText(L"Connect your " + name + L" key to chat here.", deckBodyFormat_.Get(), D2D1::RectF(area.left, cy + 14.0f * u, area.right, cy + 32.0f * u), muted,
-                     DWRITE_TEXT_ALIGNMENT_CENTER);
+            // No LLM connected at all (the side panel's "llm"): ask for one; else for this one's key.
+            const bool noLlm = f.page == L"llm";
+            DeckText(noLlm ? std::wstring(L"Add an LLM key to use it.") : L"Connect your " + name + L" key to chat here.", deckBodyFormat_.Get(),
+                     D2D1::RectF(area.left, cy + 14.0f * u, area.right, cy + 32.0f * u), muted, DWRITE_TEXT_ALIGNMENT_CENTER);
             const float bw = 96.0f * u, cx = (area.left + area.right) * 0.5f;
             const D2D1_RECT_F button = D2D1::RectF(cx - bw * 0.5f, cy + 42.0f * u, cx + bw * 0.5f, cy + 70.0f * u);
             DeckFill(button, material_.accent, 8.0f * u);
-            DeckText(L"Open Keys", deckStrongFormat_.Get(), button, D2D1::ColorF(1, 1, 1, 1), DWRITE_TEXT_ALIGNMENT_CENTER);
+            DeckText(noLlm ? L"Add LLM" : L"Open Keys", deckStrongFormat_.Get(), button, D2D1::ColorF(1, 1, 1, 1), DWRITE_TEXT_ALIGNMENT_CENTER);
             deckHits_.push_back({button, kDeckApp, Num(*a, 6)});
             return;
         }
-        const D2D1_RECT_F newChat = D2D1::RectF(head.right - 26.0f * u, head.top + 1.0f * u, head.right, head.bottom - 1.0f * u);
+        const D2D1_RECT_F newChat = D2D1::RectF(headRight - 26.0f * u, head.top + 1.0f * u, headRight, head.bottom - 1.0f * u);
         const D2D1_RECT_F past = D2D1::RectF(newChat.left - 30.0f * u, newChat.top, newChat.left - 4.0f * u, newChat.bottom);
         DeckButton(newChat, f, ink, false, kDeckApp, Num(*a, 5));
         DeckText(L"", deckGlyphFormat_.Get(), newChat, ink, DWRITE_TEXT_ALIGNMENT_CENTER);
@@ -14212,14 +14189,59 @@ class Renderer {
         if (ID2D1SolidColorBrush* brush = AcquireBrush(typing ? material_.accent : hairline)) {
             target_->DrawRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(box.left + 0.5f, box.top + 0.5f, box.right - 0.5f, box.bottom - 0.5f), 10.0f * u, 10.0f * u), brush, 1.0f * u);
         }
+        // Nyatch: the + at the left (a screenshot, a picture, a file), and at the right the mic while there is nothing
+        // to send, the send arrow once something is typed or attached, the stop button while an answer comes.
+        const D2D1_RECT_F plus = D2D1::RectF(box.left + 5.0f * u, box.bottom - 31.0f * u, box.left + 31.0f * u, box.bottom - 5.0f * u);
+        const int64_t attachAction = Num(*a, 12), micAction = Num(*a, 13);
+        if (attachAction >= 0) {
+            DeckButton(plus, f, ink, false, kDeckApp, attachAction);
+            DeckText(L"\uE710", deckGlyphFormat_.Get(), plus, ink, DWRITE_TEXT_ALIGNMENT_CENTER);
+        }
+        const bool listening = Str(*a, 14) == L"1";
+        const bool hasText = typing ? !edit_.text.empty() : !Str(*a, 9).empty();
+        const bool hasFiles = Str(*a, 15) == L"1";
+        const bool micShown = micAction >= 0 && !sending && !hasText && !hasFiles;
         const D2D1_RECT_F send = D2D1::RectF(box.right - 31.0f * u, box.bottom - 31.0f * u, box.right - 5.0f * u, box.bottom - 5.0f * u);
-        D2D1_COLOR_F sendFill = material_.accent;
-        if (Inside(send, f.hover)) sendFill.a = 0.85f;
-        DeckFill(send, sendFill, 7.0f * u);
-        DeckText(sending ? L"" : L"", deckGlyphFormat_.Get(), send, D2D1::ColorF(1, 1, 1, 1), DWRITE_TEXT_ALIGNMENT_CENTER);
-        deckHits_.push_back({send, kDeckApp, Num(*a, 8)});
-        DrawField(f, 40, D2D1::RectF(box.left + 12.0f * u, box.top + 9.0f * u, send.left - 8.0f * u, box.top + 9.0f * u + textH), Str(*a, 9),
-                  (L"Message " + name).c_str(), ink, muted);
+        if (micShown && !listening) {
+            DeckButton(send, f, ink, false, kDeckApp, micAction);
+            DeckText(L"\uE720", deckGlyphFormat_.Get(), send, ink, DWRITE_TEXT_ALIGNMENT_CENTER);
+        } else {
+            D2D1_COLOR_F sendFill = material_.accent;
+            if (Inside(send, f.hover)) sendFill.a = 0.85f;
+            DeckFill(send, sendFill, 7.0f * u);
+            // Listening: the mic, filled, until it is clicked again (or something is sent).
+            const wchar_t* glyph = sending ? L"\uE71A" : (listening && !hasText && !hasFiles) ? L"\uE720" : L"\uE724";
+            DeckText(glyph, deckGlyphFormat_.Get(), send, D2D1::ColorF(1, 1, 1, 1), DWRITE_TEXT_ALIGNMENT_CENTER);
+            deckHits_.push_back({send, kDeckApp, (listening && !hasText && !hasFiles && !sending) ? micAction : Num(*a, 8)});
+        }
+        DrawField(f, 40, D2D1::RectF((attachAction >= 0 ? plus.right + 4.0f * u : box.left + 12.0f * u), box.top + 9.0f * u, send.left - 8.0f * u, box.top + 9.0f * u + textH), Str(*a, 9),
+                  (listening ? std::wstring(L"Listening\u2026 speak, then click the mic") : L"Message " + name).c_str(), ink, muted);
+
+        // What is attached to the next question: a chip each, above the box, with its x.
+        float chipsH = 0.0f;
+        {
+            float x = area.left;
+            const float y = box.top - 30.0f * u;
+            for (const auto& r : recs) {
+                if (r[0] != L"F") continue;
+                chipsH = 30.0f * u;
+                const std::wstring kind = Str(r, 2);
+                const wchar_t* icon = kind == L"picture" ? L"\uEB9F" : kind == L"pdf" ? L"\uEA90" : L"\uE8A5";
+                std::wstring label = Str(r, 1);
+                if (label.size() > 22) label = label.substr(0, 20) + L"\u2026";
+                const float textW = MeasureWidth(label, deckSmallFormat_.Get());
+                const float w = 22.0f * u + textW + 26.0f * u;
+                if (x + w > area.right) break;
+                const D2D1_RECT_F chip = D2D1::RectF(x, y, x + w, y + 24.0f * u);
+                DeckFill(chip, raised, 7.0f * u);
+                DeckText(icon, deckGlyphFormat_.Get(), D2D1::RectF(chip.left + 4.0f * u, chip.top, chip.left + 22.0f * u, chip.bottom), muted, DWRITE_TEXT_ALIGNMENT_CENTER);
+                DeckText(label, deckSmallFormat_.Get(), D2D1::RectF(chip.left + 22.0f * u, chip.top, chip.right - 22.0f * u, chip.bottom), ink);
+                const D2D1_RECT_F remove = D2D1::RectF(chip.right - 22.0f * u, chip.top + 2.0f * u, chip.right - 2.0f * u, chip.bottom - 2.0f * u);
+                DeckButton(remove, f, ink, false, kDeckApp, Num(r, 3));
+                DeckText(L"\uE711", deckSmallFormat_.Get(), remove, muted, DWRITE_TEXT_ALIGNMENT_CENTER);
+                x = chip.right + 6.0f * u;
+            }
+        }
 
         // Nyatch: a strip under the conversation with her picture: thinking while the answer is on its way,
         // then, for a few seconds, glad that it came or sorry that it failed.
@@ -14234,7 +14256,7 @@ class Renderer {
         const bool reacting = !sending && chatDoneAt_ >= 0.0 && deckNow_ - chatDoneAt_ < 4.0;
         const bool herStripOn = (sending || reacting) && DeckHasHer({L"chat-thinking", L"thinking", L"happy", L"idle"});
         const float herStrip = herStripOn ? 54.0f * u : 0.0f;
-        const D2D1_RECT_F body = D2D1::RectF(area.left, head.bottom + 6.0f * u, area.right, box.top - 6.0f * u - herStrip);
+        const D2D1_RECT_F body = D2D1::RectF(area.left, head.bottom + 6.0f * u, area.right, box.top - 6.0f * u - herStrip - chipsH);
         if (herStripOn) {
             const D2D1_RECT_F herBox = D2D1::RectF(area.left + 4.0f * u, body.bottom + 3.0f * u, area.left + 52.0f * u, body.bottom + 51.0f * u);
             if (sending) DeckHer(L"chat", {L"chat-thinking", L"thinking", L"idle"}, herBox);
@@ -14501,11 +14523,20 @@ class Renderer {
     // A text box: the app's text, or (while it has the keyboard) what is being typed, with the
     // selection and a blinking caret. Long text scrolls: sideways on one line, down in a box of lines.
     void DrawField(const DeckFrame& f, int id, D2D1_RECT_F rect, const std::wstring& appText, const wchar_t* hint,
-                   D2D1_COLOR_F ink, D2D1_COLOR_F muted) {
+                   D2D1_COLOR_F ink, D2D1_COLOR_F muted, const std::wstring& owner = std::wstring()) {
         const float u = f.unit;
         DeckEdit kind;
         FieldKind(id, kind);
         const bool active = edit_.on && edit_.id == id;
+        // The box now shows something else (another note): it starts again on that one's text, at its end.
+        if (active && edit_.owner != owner) {
+            edit_.owner = owner;
+            edit_.text = appText;
+            edit_.caret = edit_.anchor = appText.size();
+            edit_.undo.clear();
+            edit_.typing = false;
+            edit_.follow = true;
+        }
         if (active && edit_.readOnly && edit_.text != appText) {
             edit_.text = appText;
             edit_.caret = std::min(edit_.caret, appText.size());
@@ -14517,6 +14548,7 @@ class Renderer {
         const float w = std::max(1.0f, rect.right - rect.left), h = std::max(1.0f, rect.bottom - rect.top);
         const float layoutW = kind.multiline || kind.center ? w : 100000.0f;
         FieldGeo& g = fields_[id];
+        g.owner = owner;
         if (!g.layout || g.text != text || g.width != layoutW || g.format != format) {
             g.layout.Reset();
             dwriteFactory_->CreateTextLayout(text.c_str(), static_cast<UINT32>(text.size()), format, layoutW, kind.multiline ? 1.0e6f : h, &g.layout);
@@ -14605,6 +14637,7 @@ class Renderer {
         edit_ = DeckEdit{};
         edit_.on = true;
         edit_.id = id;
+        if (it != fields_.end()) edit_.owner = it->second.owner;
         FieldKind(id, edit_);
         edit_.text = text;
         edit_.caret = edit_.anchor = text.size();
@@ -14858,7 +14891,9 @@ class Renderer {
                 const bool chosen = str(r, 3) == L"1";
                 const bool hovered = Inside(row, f.hover) && Inside(side, f.hover);
                 if (chosen || hovered) DeckFill(row, chosen ? strong : raised, 6.0f * u);
-                const std::wstring detail = str(r, 2);
+                // Hovered, a row with a delete action shows its bin at the right, in place of its detail.
+                const bool bin = hovered && num(r, 6) >= 0;
+                const std::wstring detail = bin ? std::wstring() : str(r, 2);
                 const float detailW = detail.empty() ? 0.0f : MeasureWidth(detail, deckSmallFormat_.Get()) + 6.0f * u;
                 DeckText(detail, deckSmallFormat_.Get(), D2D1::RectF(row.right - 8.0f * u - detailW, row.top, row.right - 8.0f * u, row.bottom), muted,
                          DWRITE_TEXT_ALIGNMENT_TRAILING);
@@ -14866,6 +14901,12 @@ class Renderer {
                          D2D1::RectF(row.left + 9.0f * u, row.top, row.right - 8.0f * u - detailW, row.bottom), chosen ? ink : muted);
                 deckHits_.push_back({visible(row), kDeckApp, num(r, 4)});
                 if (num(r, 5) >= 0) deckDoubles_[num(r, 4)] = num(r, 5);
+                if (bin) {
+                    // Added after the row, so a click on it is the bin's, not the row's.
+                    const D2D1_RECT_F box = D2D1::RectF(row.right - 26.0f * u, row.top + 2.0f * u, row.right - 4.0f * u, row.bottom - 2.0f * u);
+                    DeckButton(box, f, ink, false, kDeckApp, num(r, 6));
+                    DeckText(L"", deckGlyphFormat_.Get(), box, muted, DWRITE_TEXT_ALIGNMENT_CENTER);
+                }
                 y += 27.0f * u;
             } else if (k == L'W') {
                 const D2D1_RECT_F row = D2D1::RectF(side.left, y, side.right, y + 24.0f * u);
@@ -14873,7 +14914,9 @@ class Renderer {
                 if (edit_.on && edit_.id == 12) {
                     if (ID2D1SolidColorBrush* brush = AcquireBrush(edge)) target_->DrawRoundedRectangle(D2D1::RoundedRect(row, 6.0f * u, 6.0f * u), brush, 1.0f * u);
                 }
-                DrawField(f, 12, D2D1::RectF(row.left + 9.0f * u, row.top, row.right - 6.0f * u, row.bottom), str(r, 1), L"List name", ink, muted);
+                // The name of a list or a note: its hint from the app, and it is tied to that list or note.
+                const std::wstring hint = str(r, 2).empty() ? std::wstring(L"List name") : str(r, 2);
+                DrawField(f, 12, D2D1::RectF(row.left + 9.0f * u, row.top, row.right - 6.0f * u, row.bottom), str(r, 1), hint.c_str(), ink, muted, str(r, 3));
                 y += 27.0f * u;
             } else if (k == L'E') {
                 DeckText(str(r, 1), deckSmallFormat_.Get(), D2D1::RectF(side.left + 9.0f * u, y, side.right, y + 16.0f * u), muted);
@@ -14924,7 +14967,7 @@ class Renderer {
                     if (ID2D1SolidColorBrush* brush = AcquireBrush(soft)) target_->DrawRoundedRectangle(D2D1::RoundedRect(card, 9.0f * u, 9.0f * u), brush, 1.0f * u);
                 }
                 DrawField(f, 10, D2D1::RectF(card.left + 11.0f * u, card.top + 8.0f * u, card.right - 9.0f * u, card.bottom - 8.0f * u), str(r, 3),
-                          L"Write here. The first line is the title.", ink, muted);
+                          L"Write here. The first line is the title.", ink, muted, str(r, 4));
             } else if (k == L'X') {
                 const D2D1_RECT_F list = D2D1::RectF(right.left, right.top + 72.0f * u, right.right, right.bottom);
                 const float cy = (list.top + list.bottom) * 0.5f - 14.0f * u;
@@ -15279,26 +15322,34 @@ class Renderer {
     }
 
     // The page dots at the right edge: the current page a taller pill. Each can be clicked.
+    // Nyatch: the page dots, as the top notch draws them (DrawTabPagination): round dots evenly spaced, and a
+    // pill that travels between them on the page change's spring, a little longer while it moves fast. The dot
+    // under the pill fades, so it reads as passing over the track.
     void DrawDeckDots(const DeckFrame& f, D2D1_COLOR_F ink) {
         if (f.pageCount <= 1) return;
         const float u = f.unit;
         const float x = f.pill.right - 13.0f * u;
-        const float step = 9.0f * u;
-        float total = 0.0f;
-        for (int i = 0; i < f.pageCount; ++i) total += (i == f.pageIndex ? 14.0f * u : 4.0f * u) + (i ? 5.0f * u : 0.0f);
-        float y = (f.pill.top + f.pill.bottom) * 0.5f - total * 0.5f;
+        const float spacing = 9.0f * u;
+        const float r = 2.5f * u;
+        const float startY = (f.pill.top + f.pill.bottom) * 0.5f - spacing * (f.pageCount - 1) * 0.5f;
+        // Where the pill is: the page on show, less what is left of the slide to it.
+        const float pos = Clamp(static_cast<float>(f.pageIndex) - (deckPageMoving_ ? deckPageDir_ * deckPagePos_ : 0.0f), -0.3f,
+                                static_cast<float>(f.pageCount) - 0.7f);
+        ID2D1SolidColorBrush* brush = AcquireBrush(D2D1::ColorF(ink.r, ink.g, ink.b, 1.0f));
+        if (!brush) return;
         for (int i = 0; i < f.pageCount; ++i) {
-            const bool chosen = i == f.pageIndex;
-            const float h = chosen ? 14.0f * u : 4.0f * u;
-            D2D1_COLOR_F c = ink;
-            c.a = chosen ? 0.85f : 0.28f;
-            if (ID2D1SolidColorBrush* brush = AcquireBrush(c)) {
-                target_->FillRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(x - 2.0f * u, y, x + 2.0f * u, y + h), 2.0f * u, 2.0f * u), brush);
-            }
-            deckHits_.push_back({D2D1::RectF(x - 7.0f * u, y - 2.5f * u, x + 7.0f * u, y + h + 2.5f * u), kDeckGoTo, i});
-            y += h + 5.0f * u;
-            (void)step;
+            const float y = startY + spacing * static_cast<float>(i);
+            const float under = SmoothStep01(Clamp(1.0f - std::fabs(pos - static_cast<float>(i)), 0.0f, 1.0f));
+            brush->SetOpacity(0.28f * (1.0f - under));
+            target_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(x, y), r, r), brush);
+            deckHits_.push_back({D2D1::RectF(x - 7.0f * u, y - spacing * 0.5f, x + 7.0f * u, y + spacing * 0.5f), kDeckGoTo, i});
         }
+        const float stretch = Clamp(std::fabs(deckPageVel_) * 0.55f, 0.0f, 3.5f) * u;
+        const float halfH = r + 2.2f * u + stretch;
+        const float cy = startY + spacing * pos;
+        brush->SetOpacity(0.90f);
+        target_->FillRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(x - r, cy - halfH, x + r, cy + halfH), r, r), brush);
+        brush->SetOpacity(1.0f);
     }
 
     static std::vector<std::wstring> SplitOn(const std::wstring& text, wchar_t separator) {
@@ -15352,18 +15403,9 @@ class Renderer {
         return text;
     }
 
-    // A dashed box with an icon and words: where to drop files.
+    // An icon and words, with no box round them: where to drop files.
     void DeckDropHere(D2D1_RECT_F box, const DeckFrame& f, D2D1_COLOR_F muted, const wchar_t* words, bool her = false) {
         const float u = f.unit;
-        ComPtr<ID2D1StrokeStyle> dashes;
-        const D2D1_STROKE_STYLE_PROPERTIES props = D2D1::StrokeStyleProperties(D2D1_CAP_STYLE_ROUND, D2D1_CAP_STYLE_ROUND, D2D1_CAP_STYLE_ROUND,
-                                                                               D2D1_LINE_JOIN_ROUND, 10.0f, D2D1_DASH_STYLE_DASH);
-        d2dFactory_->CreateStrokeStyle(props, nullptr, 0, &dashes);
-        D2D1_COLOR_F edge = muted;
-        edge.a = 0.45f;
-        if (ID2D1SolidColorBrush* brush = AcquireBrush(edge)) {
-            target_->DrawRoundedRectangle(D2D1::RoundedRect(box, 12.0f * u, 12.0f * u), brush, 1.2f * u, dashes.Get());
-        }
         const float cy = (box.top + box.bottom) * 0.5f;
         if (!(her && DeckHer(L"tray", {L"tray-empty", L"confused", L"idle"}, HerBox(box, cy + 4.0f * u, 112.0f * u)))) {
             DeckText(L"\uE896", deckBigGlyphFormat_.Get(), D2D1::RectF(box.left, cy - 34.0f * u, box.right, cy + 4.0f * u), muted, DWRITE_TEXT_ALIGNMENT_CENTER);
@@ -15378,10 +15420,14 @@ class Renderer {
         const float headH = 28.0f * u;
         float right = area.right;
         for (const auto& [glyph, action] : buttons) {
-            const D2D1_RECT_F box = D2D1::RectF(right - 26.0f * u, area.top + 2.0f * u, right, area.top + headH - 2.0f * u);
+            // An icon (a Segoe Fluent glyph) gets a square button; words ("Clear all") one as wide as on Notifications.
+            const bool words = glyph[0] < 0xE000;
+            const float width = (words ? 62.0f : 26.0f) * u;
+            const D2D1_RECT_F box = words ? D2D1::RectF(right - width, area.top + 3.0f * u, right, area.top + headH - 3.0f * u)
+                                          : D2D1::RectF(right - width, area.top + 2.0f * u, right, area.top + headH - 2.0f * u);
             DeckButton(box, f, ink, false, action);
-            DeckText(glyph, deckGlyphFormat_.Get(), box, ink, DWRITE_TEXT_ALIGNMENT_CENTER);
-            right -= 30.0f * u;
+            DeckText(glyph, words ? deckBodyFormat_.Get() : deckGlyphFormat_.Get(), box, ink, DWRITE_TEXT_ALIGNMENT_CENTER);
+            right -= width + 4.0f * u;
         }
         DeckText(count, deckSmallFormat_.Get(), D2D1::RectF(area.left, area.top, right - 4.0f * u, area.top + headH), muted, DWRITE_TEXT_ALIGNMENT_TRAILING);
         DeckText(title, deckTitleFormat_.Get(), D2D1::RectF(area.left + 2.0f * u, area.top, right - 60.0f * u, area.top + headH), ink);
@@ -15403,7 +15449,7 @@ class Renderer {
             downloads = g_trayDownloads;
         }
         const std::wstring count = items.empty() ? L"" : items.size() == 1 ? L"1 item" : std::to_wstring(items.size()) + L" items";
-        const float top = DeckHead(f, area, L"File Tray", count, {{L"\uE74D", kDeckTrayClear}, {L"\uE77F", kDeckTrayPaste}}, ink, muted);
+        const float top = DeckHead(f, area, L"File Tray", count, {{L"Clear all", kDeckTrayClear}, {L"\uE77F", kDeckTrayPaste}}, ink, muted);
         const D2D1_RECT_F list = D2D1::RectF(area.left, top, area.right, area.bottom);
         deckListRect_ = list;
         deckTrayPaths_.clear();
@@ -15555,7 +15601,7 @@ class Renderer {
         }
         const std::wstring count = clips.empty() ? L"" : clips.size() == 1 ? L"1 item" : std::to_wstring(clips.size()) + L" items";
         const bool loose = std::any_of(clips.begin(), clips.end(), [](const Clip& c) { return !c.pinned; });
-        const float top = loose ? DeckHead(f, area, L"Clipboard", count, {{L"\uE74D", kDeckApp}}, ink, muted)
+        const float top = loose ? DeckHead(f, area, L"Clipboard", count, {{L"Clear all", kDeckApp}}, ink, muted)
                                 : DeckHead(f, area, L"Clipboard", count, {}, ink, muted);
         // The bin (when there is something to clear) asks the app to clear.
         for (DeckHit& hit : deckHits_) {
@@ -15811,9 +15857,20 @@ class Renderer {
     // 5/6 pomodoro, 100 + minutes for a timer length.
     void DrawDeckFocus(const DeckFrame& f, D2D1_RECT_F area, D2D1_COLOR_F ink, D2D1_COLOR_F muted) {
         const float u = f.unit;
-        DeckText(L"Focus", deckTitleFormat_.Get(), D2D1::RectF(area.left + 2.0f * u, area.top, area.right, area.top + 28.0f * u), ink);
+        DeckText(L"Focus", deckTitleFormat_.Get(), D2D1::RectF(area.left + 2.0f * u, area.top, area.right - 34.0f * u, area.top + 28.0f * u), ink);
         const std::vector<std::wstring> parts = SplitOn(f.data, L'\x1E');
         if (parts.size() < 4) return;
+        // Nyatch: the alarms (the third part): a head (when the next rings, the + and the gear's actions), then a row each.
+        const std::vector<std::wstring> alarmRows = SplitOn(parts[2], L'\x1D');
+        const std::vector<std::wstring> alarmHead = alarmRows.empty() ? std::vector<std::wstring>() : SplitOn(alarmRows[0], L'\x1F');
+        auto field = [](const std::vector<std::wstring>& v, size_t i) { return i < v.size() ? v[i] : std::wstring(); };
+        auto number = [](const std::vector<std::wstring>& v, size_t i) -> int64_t { return i < v.size() && !v[i].empty() ? _wtoi64(v[i].c_str()) : -1; };
+        // The gear in the page's head: the Focus & timers settings.
+        if (number(alarmHead, 2) >= 0) {
+            const D2D1_RECT_F gear = D2D1::RectF(area.right - 26.0f * u, area.top + 2.0f * u, area.right, area.top + 26.0f * u);
+            DeckButton(gear, f, ink, false, kDeckApp, number(alarmHead, 2));
+            DeckText(L"\uE713", deckGlyphFormat_.Get(), gear, muted, DWRITE_TEXT_ALIGNMENT_CENTER);
+        }
         const int chosen = _wtoi(parts[3].c_str());
         const float gap = 6.0f * u;
         const float cardW = ((area.right - area.left) - gap * 2.0f) / 3.0f;
@@ -15821,7 +15878,7 @@ class Renderer {
         static const int lengths[] = {5, 10, 25, 45};
         // Nyatch: with her picture, the stopwatch's card ends under its buttons and she stands below it.
         const bool herUnder = DeckHasHer({L"focus-work", L"focus-idle", L"idle"});
-        for (int c = 0; c < 3; ++c) {
+        for (int c = 0; c < 2; ++c) {
             const std::vector<std::wstring> clock = SplitOn(parts[c], L'\x1F');
             if (clock.size() < 5) continue;
             const float left = area.left + c * (cardW + gap);
@@ -15882,9 +15939,65 @@ class Renderer {
                     }
                 }
                 DrawField(f, 1, box, L"", L"Custom min", ink, muted);
-            } else if (c == 2) {
-                DeckText(L"25m focus, 5m break", deckSmallFormat_.Get(), D2D1::RectF(card.left + 4.0f * u, below, card.right - 4.0f * u, below + 14.0f * u), muted, DWRITE_TEXT_ALIGNMENT_CENTER);
-                DeckText(L"15m every fourth", deckSmallFormat_.Get(), D2D1::RectF(card.left + 4.0f * u, below + 14.0f * u, card.right - 4.0f * u, below + 28.0f * u), muted, DWRITE_TEXT_ALIGNMENT_CENTER);
+            }
+        }
+
+        // ----- The alarms: when the next one rings, then a row each (the list scrolls) -----
+        {
+            const float left = area.left + 2.0f * (cardW + gap);
+            const D2D1_RECT_F card = D2D1::RectF(left, top, left + cardW, std::min(area.bottom, top + 232.0f * u));
+            D2D1_COLOR_F fill = ink;
+            fill.a = 0.085f;
+            if (ID2D1SolidColorBrush* brush = AcquireBrush(fill)) target_->FillRoundedRectangle(D2D1::RoundedRect(card, 12.0f * u, 12.0f * u), brush);
+            DeckText(L"Alarms", deckSmallFormat_.Get(), D2D1::RectF(card.left + 4.0f * u, card.top + 10.0f * u, card.right - 4.0f * u, card.top + 26.0f * u), muted, DWRITE_TEXT_ALIGNMENT_CENTER);
+            if (number(alarmHead, 1) >= 0) {
+                const D2D1_RECT_F plus = D2D1::RectF(card.right - 30.0f * u, card.top + 6.0f * u, card.right - 6.0f * u, card.top + 30.0f * u);
+                DeckButton(plus, f, ink, false, kDeckApp, number(alarmHead, 1));
+                DeckText(L"\uE710", deckGlyphFormat_.Get(), plus, ink, DWRITE_TEXT_ALIGNMENT_CENTER);
+            }
+            DeckText(field(alarmHead, 0), deckSmallFormat_.Get(), D2D1::RectF(card.left + 8.0f * u, card.top + 32.0f * u, card.right - 8.0f * u, card.top + 48.0f * u), ink,
+                     DWRITE_TEXT_ALIGNMENT_CENTER);
+            const D2D1_RECT_F list = D2D1::RectF(card.left + 6.0f * u, card.top + 54.0f * u, card.right - 6.0f * u, card.bottom - 6.0f * u);
+            const size_t count = alarmRows.size() > 0 ? alarmRows.size() - 1 : 0;
+            if (count == 0) {
+                DeckText(L"Add one with +", deckSmallFormat_.Get(), D2D1::RectF(list.left, list.top + 20.0f * u, list.right, list.top + 36.0f * u), muted, DWRITE_TEXT_ALIGNMENT_CENTER);
+            } else {
+                const float rowH = 44.0f * u, rowGap = 4.0f * u;
+                const float total = count * rowH + (count - 1) * rowGap;
+                const float max = std::max(0.0f, total - (list.bottom - list.top));
+                float& sc = regionScroll_[8];
+                sc = std::clamp(sc, 0.0f, max);
+                regions_[8] = {list, max, false};
+                target_->PushAxisAlignedClip(list, D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
+                for (size_t i = 0; i < count; ++i) {
+                    const std::vector<std::wstring> r = SplitOn(alarmRows[i + 1], L'\x1F');
+                    const float y = list.top + i * (rowH + rowGap) - sc;
+                    const D2D1_RECT_F row = D2D1::RectF(list.left, y, list.right, y + rowH);
+                    if (row.bottom < list.top || row.top > list.bottom) continue;
+                    const D2D1_RECT_F seen = D2D1::RectF(row.left, std::max(row.top, list.top), row.right, std::min(row.bottom, list.bottom));
+                    const bool on = field(r, 3) == L"1";
+                    D2D1_COLOR_F back = ink;
+                    back.a = Inside(seen, f.hover) ? 0.13f : 0.07f;
+                    DeckFill(row, back, 8.0f * u);
+                    const float right = row.right - 46.0f * u;
+                    DeckText(field(r, 0), deckStrongFormat_.Get(), D2D1::RectF(row.left + 10.0f * u, row.top + 5.0f * u, right, row.top + 24.0f * u), on ? ink : muted);
+                    const std::wstring label = field(r, 1);
+                    const std::wstring under = label.empty() ? field(r, 2) : label + L" \u00B7 " + field(r, 2);
+                    DeckText(under, deckSmallFormat_.Get(), D2D1::RectF(row.left + 10.0f * u, row.top + 24.0f * u, right, row.bottom - 4.0f * u), muted);
+                    deckHits_.push_back({seen, kDeckApp, number(r, 4)});
+                    // Its switch: the accent while on; added after the row, so a click on it is the switch's.
+                    const float cy = (row.top + row.bottom) * 0.5f;
+                    const D2D1_RECT_F track = D2D1::RectF(row.right - 42.0f * u, cy - 9.0f * u, row.right - 10.0f * u, cy + 9.0f * u);
+                    D2D1_COLOR_F trackColour = on ? material_.accent : ink;
+                    if (!on) trackColour.a = 0.25f;
+                    DeckFill(track, trackColour, 9.0f * u);
+                    const float knob = 6.5f * u;
+                    const D2D1_POINT_2F knobAt = D2D1::Point2F(on ? track.right - 9.0f * u : track.left + 9.0f * u, cy);
+                    if (ID2D1SolidColorBrush* brush = AcquireBrush(on ? D2D1::ColorF(0, 0, 0, 1) : ink)) target_->FillEllipse(D2D1::Ellipse(knobAt, knob, knob), brush);
+                    const D2D1_RECT_F hit = D2D1::RectF(track.left - 4.0f * u, std::max(row.top, list.top), row.right, std::min(row.bottom, list.bottom));
+                    deckHits_.push_back({hit, kDeckApp, number(r, 5)});
+                }
+                target_->PopAxisAlignedClip();
             }
         }
 
@@ -15892,7 +16005,7 @@ class Renderer {
         // its break), the timer, the stopwatch, or nothing.
         {
             auto clockOf = [&](int c) { return SplitOn(parts[c], L'\x1F'); };
-            const std::vector<std::wstring> timer = clockOf(0), watch = clockOf(1), pomodoro = clockOf(2);
+            const std::vector<std::wstring> timer = clockOf(0), watch = clockOf(1);
             auto runs = [](const std::vector<std::wstring>& clock) { return clock.size() >= 5 && clock[4] == L"1"; };
             const float left = area.left + cardW + gap;
             const float below = top + 184.0f * u;
@@ -15901,10 +16014,7 @@ class Renderer {
             if (herUnder && side > 30.0f * u) {
                 const float cx = left + cardW * 0.5f;
                 const D2D1_RECT_F box = D2D1::RectF(cx - side * 0.5f, bottom - side, cx + side * 0.5f, bottom);
-                const bool onBreak = runs(pomodoro) && pomodoro.size() >= 3 &&
-                                     (pomodoro[2].find(L"reak") != std::wstring::npos || pomodoro[2].find(L"Rest") != std::wstring::npos);
-                if (onBreak) DeckHer(L"focus", {L"focus-break", L"sleeping", L"idle"}, box);
-                else if (runs(pomodoro) || runs(timer)) DeckHer(L"focus", {L"focus-work", L"cool", L"idle"}, box);
+                if (runs(timer)) DeckHer(L"focus", {L"focus-work", L"cool", L"idle"}, box);
                 else if (runs(watch)) DeckHer(L"focus", {L"focus-stopwatch", L"dance", L"idle"}, box, 0, 0.0);
                 else DeckHer(L"focus", {L"focus-idle", L"idle"}, box);
             }
@@ -16115,6 +16225,60 @@ class Renderer {
         return metrics.widthIncludingTrailingWhitespace;
     }
 
+    // Nyatch: the second notch's page change, the same spring as the top notch's (DrawTabTransition):
+    // deckPagePos_ is how far the new page still is from the middle (1 at the start, 0 settled).
+    std::wstring deckShownPage_, deckShownData_, deckPrevPage_, deckPrevData_;
+    int deckShownIndex_ = -1;
+    float deckPagePos_ = 0.0f, deckPageVel_ = 0.0f, deckPageDir_ = 1.0f;
+    double deckPageLast_ = 0.0;
+    bool deckPageMoving_ = false;
+
+    void StepDeckPages(const DeckFrame& f, double now) {
+        float dt = static_cast<float>(now - deckPageLast_);
+        deckPageLast_ = now;
+        dt = deckPageMoving_ ? Clamp(dt, 0.001f, 0.05f) : (1.0f / 120.0f);
+        if (f.page != deckShownPage_) {
+            // Only between two pages of an open notch (the side panel's chats, and opening, do not slide).
+            const bool slide = !f.side && !deckShownPage_.empty() && deckShownIndex_ >= 0 && f.pageIndex != deckShownIndex_ && f.contentShown > 0.95f;
+            if (slide) {
+                deckPrevPage_ = deckShownPage_;
+                deckPrevData_ = deckShownData_;
+                deckPageDir_ = f.pageIndex > deckShownIndex_ ? 1.0f : -1.0f;
+                deckPagePos_ = 1.0f;
+                deckPageVel_ = 0.0f;
+            } else {
+                deckPagePos_ = 0.0f;
+                deckPageVel_ = 0.0f;
+            }
+            deckShownPage_ = f.page;
+            deckShownIndex_ = f.pageIndex;
+        }
+        deckShownData_ = f.data;
+        if (f.contentShown < 0.95f) {
+            deckPagePos_ = 0.0f;
+            deckPageVel_ = 0.0f;
+        }
+        if (deckPagePos_ != 0.0f || deckPageVel_ != 0.0f) {
+            constexpr float kStiffness = 250.0f, kDamping = 31.0f;
+            float remaining = dt;
+            while (remaining > 0.0f) {
+                const float h = std::min(remaining, 0.004f);
+                deckPageVel_ += (-kStiffness * deckPagePos_ - kDamping * deckPageVel_) * h;
+                deckPagePos_ += deckPageVel_ * h;
+                if (deckPagePos_ < 0.0f) {
+                    deckPagePos_ = 0.0f;
+                    if (deckPageVel_ < 0.0f) deckPageVel_ = 0.0f;
+                }
+                remaining -= h;
+            }
+            if (deckPagePos_ < 0.0008f && std::fabs(deckPageVel_) < 0.02f) {
+                deckPagePos_ = 0.0f;
+                deckPageVel_ = 0.0f;
+            }
+        }
+        deckPageMoving_ = deckPagePos_ != 0.0f || deckPageVel_ != 0.0f;
+    }
+
     bool RenderDeck(HWND hwnd, const SharedState& state, const Settings& settings, const DeckFrame& f, double now) {
         if (!CreateBackingBitmap(f.width, f.height)) return false;
         RECT rc = {0, 0, f.width, f.height};
@@ -16195,10 +16359,11 @@ class Renderer {
             // Beside the text (Deck.Emoji): Nyatch's paw prints, an emoji of the user's, or nothing.
             // Nyatch: the side panel's mark is the logo of the assistant last used on it.
             ID2D1Bitmap* sideLogo = f.side && !f.page.empty() ? AssistantLogo(f.page, static_cast<UINT>(std::lround(36.0f * f.unit))) : nullptr;
-            const bool noMark = !sideLogo && settings.deckEmoji == L"none";
+            // The side panel with no LLM connected ("llm") shows its word alone, with no mark.
+            const bool noMark = (!sideLogo && settings.deckEmoji == L"none") || (f.side && f.page == L"llm");
             // Nyatch: "character": her face (still, so the closed notch stays calm). Without a pack, the paws.
-            const bool herMark = !sideLogo && settings.deckEmoji == L"character" && !CharacterPath(settings, {L"closed", L"face", L"happy", L"idle"}).empty();
-            const bool paws = !sideLogo && !herMark && (settings.deckEmoji.empty() || settings.deckEmoji == L"paws" || settings.deckEmoji == L"character");
+            const bool herMark = !noMark && !sideLogo && settings.deckEmoji == L"character" && !CharacterPath(settings, {L"closed", L"face", L"happy", L"idle"}).empty();
+            const bool paws = !noMark && !sideLogo && !herMark && (settings.deckEmoji.empty() || settings.deckEmoji == L"paws" || settings.deckEmoji == L"character");
             const float iconW = noMark ? 0.0f : sideLogo ? 16.0f * f.unit : herMark ? 24.0f * f.unit : 13.0f * f.unit;
             const float gap = noMark ? 0.0f : 8.0f * f.unit;
             const float total = iconW + gap + textW;
@@ -16290,16 +16455,55 @@ class Renderer {
                 target_->PushLayer(D2D1::LayerParameters(rect, nullptr, D2D1_ANTIALIAS_MODE_PER_PRIMITIVE, D2D1::IdentityMatrix(),
                                                          f.contentShown), layer);
             }
-            if (f.page == L"notifications") DrawDeckNotifications(f, area, ink, muted);
-            else if (f.page == L"focus") DrawDeckFocus(f, area, ink, muted);
-            else if (f.page == L"apps") DrawDeckApps(f, area, ink, muted);
-            else if (f.page == L"tray") DrawDeckTray(f, area, ink, muted);
-            else if (f.page == L"clipboard") DrawDeckClipboard(f, area, ink, muted);
-            else if (f.page == L"notes") DrawDeckNotes(f, area, ink, muted);
-            else if (f.page == L"terminal") DrawDeckTerminal(f, area, ink, muted);
-            else if (IsChatPageId(f.page)) DrawDeckChat(f, area, ink, muted);
-            else if (f.page == L"online") DrawDeckOnline(f, area, ink, muted);
-            else if (f.page == L"keys") DrawDeckKeys(f, area, ink, muted);
+            auto drawPage = [&](const DeckFrame& p) {
+                if (p.page == L"notifications") DrawDeckNotifications(p, area, ink, muted);
+                else if (p.page == L"focus") DrawDeckFocus(p, area, ink, muted);
+                else if (p.page == L"apps") DrawDeckApps(p, area, ink, muted);
+                else if (p.page == L"tray") DrawDeckTray(p, area, ink, muted);
+                else if (p.page == L"clipboard") DrawDeckClipboard(p, area, ink, muted);
+                else if (p.page == L"notes") DrawDeckNotes(p, area, ink, muted);
+                else if (p.page == L"terminal") DrawDeckTerminal(p, area, ink, muted);
+                else if (IsChatPageId(p.page) || (p.side && p.page == L"llm")) DrawDeckChat(p, area, ink, muted);
+                else if (p.page == L"online") DrawDeckOnline(p, area, ink, muted);
+                else if (p.page == L"keys") DrawDeckKeys(p, area, ink, muted);
+            };
+            StepDeckPages(f, now);
+            if (!deckPageMoving_) {
+                drawPage(f);
+            } else {
+                // Nyatch: the top notch's page change, here too: the pages travel as one strip, a fixed gap apart,
+                // each shrinking a little and fading with its distance from the middle (see DrawTabTransition).
+                constexpr float kTravel = 34.0f, kMinScale = 0.965f, kFadePower = 1.4f;
+                const D2D1_POINT_2F centre = D2D1::Point2F((area.left + area.right) * 0.5f, (area.top + area.bottom) * 0.5f);
+                D2D1_MATRIX_3X2_F before;
+                target_->GetTransform(&before);
+                auto drawAt = [&](const DeckFrame& p, float d) {
+                    const float eased = SmoothStep01(Clamp(std::fabs(d), 0.0f, 1.0f));
+                    const float alpha = std::pow(1.0f - eased, kFadePower);
+                    if (alpha <= 0.004f) return;
+                    const float scale = 1.0f - (1.0f - kMinScale) * eased;
+                    target_->SetTransform(D2D1::Matrix3x2F::Scale(scale, scale, centre) * D2D1::Matrix3x2F::Translation(0.0f, d * kTravel * u) * before);
+                    ID2D1Layer* fade = alpha < 0.995f ? AcquireLayer() : nullptr;
+                    if (fade) target_->PushLayer(D2D1::LayerParameters(rect, nullptr, D2D1_ANTIALIAS_MODE_PER_PRIMITIVE, D2D1::IdentityMatrix(), alpha), fade);
+                    drawPage(p);
+                    if (fade) target_->PopLayer();
+                    target_->SetTransform(before);
+                };
+                // The page being left, as it last was; nothing on it can be clicked.
+                DeckFrame old = f;
+                old.page = deckPrevPage_;
+                old.data = deckPrevData_;
+                old.hover = {-100000, -100000};
+                old.scroll = 0.0f;
+                drawAt(old, deckPageDir_ * (deckPagePos_ - 1.0f));
+                deckHits_.clear();
+                fieldsDrawn_.clear();
+                regions_.clear();
+                deckDoubles_.clear();
+                chatRect_ = {};
+                deckScrollMax_ = 0.0f;
+                drawAt(f, deckPageDir_ * deckPagePos_);
+            }
             DrawDeckDots(f, ink);
             if (layer) target_->PopLayer();
             // Nothing can be clicked until the page is there.
@@ -20434,20 +20638,6 @@ class Renderer {
             }
         }
 
-        // Nyatch: a line of your own above the clock, in the quiet text colour.
-        if (!settings.clockNote.empty() && smallTextFormat_) {
-            const DWRITE_TEXT_ALIGNMENT oldAlign = smallTextFormat_->GetTextAlignment();
-            const DWRITE_PARAGRAPH_ALIGNMENT oldPara = smallTextFormat_->GetParagraphAlignment();
-            smallTextFormat_->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
-            smallTextFormat_->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
-            mutedBrush_->SetOpacity(0.85f);
-            target_->DrawTextW(settings.clockNote.c_str(), static_cast<UINT32>(settings.clockNote.size()), smallTextFormat_.Get(),
-                               D2D1::RectF(rect.left + 30.0f * scale, rect.top + 12.0f * scale, rect.right - 30.0f * scale, rect.top + 30.0f * scale),
-                               mutedBrush_.Get(), D2D1_DRAW_TEXT_OPTIONS_CLIP);
-            smallTextFormat_->SetTextAlignment(oldAlign);
-            smallTextFormat_->SetParagraphAlignment(oldPara);
-        }
-
         // Time and date as a single typographic block. `dateFirst` promotes the
         // date to the headline for people who care about it more than the clock
         // (#61); either way the pair stays optically centred as a unit.
@@ -20462,6 +20652,55 @@ class Renderer {
         const std::wstring& subline = settings.dateFirst ? timeText : dateText;
         IDWriteTextFormat* headlineFmt = settings.dateFirst ? smallFmt : bigFmt;
         IDWriteTextFormat* sublineFmt = settings.dateFirst ? bigFmt : smallFmt;
+
+        // Nyatch: a line of your own, centred between the top of the notch and the top of the clock's (or the
+        // date's) letters: up to two lines of about 25 characters, a little bolder and whiter than the date.
+        if (!settings.clockNote.empty() && smallTextFormat_ && dwriteFactory_) {
+            const D2D1_RECT_F firstRect = settings.dateFirst ? D2D1::RectF(rect.left, cy - 46.0f * scale, rect.right, cy - 22.0f * scale)
+                                                             : D2D1::RectF(rect.left, cy - 44.0f * scale, rect.right, cy + 20.0f * scale);
+            float inkTop = firstRect.top;
+            ComPtr<IDWriteTextLayout> first;
+            if (SUCCEEDED(dwriteFactory_->CreateTextLayout(headline.c_str(), static_cast<UINT32>(headline.size()), headlineFmt,
+                                                            firstRect.right - firstRect.left, firstRect.bottom - firstRect.top, &first)) && first) {
+                DWRITE_OVERHANG_METRICS over{};
+                if (SUCCEEDED(first->GetOverhangMetrics(&over))) inkTop = firstRect.top - over.top;
+            }
+            // As wide as 25 characters, so a longer line goes on to a second one.
+            float lineW = 200.0f * scale;
+            ComPtr<IDWriteTextLayout> sample;
+            static const std::wstring kSample = L"abcdefghijklmnopqrstuvwxy";
+            if (SUCCEEDED(dwriteFactory_->CreateTextLayout(kSample.c_str(), static_cast<UINT32>(kSample.size()), smallTextFormat_.Get(), 4000.0f, 200.0f, &sample)) && sample) {
+                DWRITE_TEXT_METRICS m{};
+                sample->GetMetrics(&m);
+                lineW = m.widthIncludingTrailingWhitespace + 2.0f * scale;
+            }
+            lineW = std::min(lineW, (rect.right - rect.left) - 40.0f * scale);
+            const float areaTop = rect.top + 4.0f * scale;
+            const float areaBottom = std::max(areaTop + 10.0f * scale, inkTop - 3.0f * scale);
+            ComPtr<IDWriteTextLayout> note;
+            if (SUCCEEDED(dwriteFactory_->CreateTextLayout(settings.clockNote.c_str(), static_cast<UINT32>(settings.clockNote.size()), smallTextFormat_.Get(),
+                                                            lineW, 400.0f, &note)) && note) {
+                note->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
+                note->SetWordWrapping(DWRITE_WORD_WRAPPING_WRAP);
+                const DWRITE_TEXT_RANGE all = {0, static_cast<UINT32>(settings.clockNote.size())};
+                note->SetFontWeight(DWRITE_FONT_WEIGHT_SEMI_BOLD, all);
+                DWRITE_TEXT_METRICS nm{};
+                note->GetMetrics(&nm);
+                // Two lines at most.
+                float noteH = nm.height;
+                if (nm.lineCount > 2) {
+                    std::vector<DWRITE_LINE_METRICS> lines(nm.lineCount);
+                    UINT32 got = 0;
+                    if (SUCCEEDED(note->GetLineMetrics(lines.data(), nm.lineCount, &got)) && got >= 2) noteH = lines[0].height + lines[1].height;
+                }
+                const float x = cx - lineW * 0.5f;
+                const float y = (areaTop + areaBottom) * 0.5f - noteH * 0.5f;
+                target_->PushAxisAlignedClip(D2D1::RectF(rect.left, y, rect.right, y + noteH), D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
+                textBrush_->SetOpacity(0.86f);
+                target_->DrawTextLayout(D2D1::Point2F(x, y), note.Get(), textBrush_.Get(), D2D1_DRAW_TEXT_OPTIONS_NONE);
+                target_->PopAxisAlignedClip();
+            }
+        }
 
         if (settings.dateFirst) {
             // Date on top reads as a label, so give the big clock the lower slot.
@@ -24988,12 +25227,13 @@ class Renderer {
     void DrawTimer(const SharedState& state, D2D1_RECT_F rect) {
         if (rect.bottom - rect.top < 24.0f || rect.right - rect.left < 140.0f) return;
         const double now = NowSeconds();
-        double remaining = state.timer.justFinished
+        const bool ringing = state.timer.ringing;
+        double remaining = state.timer.justFinished || ringing
             ? 0.0
             : (state.timer.running ? std::max(0.0, state.timer.endsAt - now)
                                     : state.timer.remainingAtPause);
         const int totalSec = state.timer.totalSeconds > 0 ? state.timer.totalSeconds : 1;
-        const float progress = state.timer.justFinished
+        const float progress = state.timer.justFinished || ringing
             ? 1.0f
             : Clamp(1.0f - static_cast<float>(remaining / totalSec), 0.0f, 1.0f);
 
@@ -25036,7 +25276,7 @@ class Renderer {
         D2D1_COLOR_F fgColor = state.timer.isBreak
             ? D2D1::ColorF(0.19f, 0.83f, 0.38f, 1.0f)
             : D2D1::ColorF(1.0f, 0.58f, 0.0f, 1.0f);
-        if (state.timer.justFinished) {
+        if (state.timer.justFinished || ringing) {
             fgColor = D2D1::ColorF(1.0f, 0.23f, 0.18f, 1.0f);
         }
         target_->CreateSolidColorBrush(fgColor, &ringFg);
@@ -25056,18 +25296,76 @@ class Renderer {
 
         const float tx = badge.right + 14;
         mutedBrush_->SetOpacity(0.50f);
-        std::wstring label = state.timer.justFinished
+        // Ringing: the app's title, and under it the keys' words (sent as the title, a line break, then the keys).
+        const size_t ringBreak = state.timer.ringTitle.find(L'\n');
+        const std::wstring ringLabel = state.timer.ringTitle.substr(0, ringBreak);
+        std::wstring ringKeys = ringBreak == std::wstring::npos ? std::wstring(L"Space stop") : state.timer.ringTitle.substr(ringBreak + 1);
+        // Then the again button's word ("Again", "Snooze"), after a second line break.
+        std::wstring ringAgain = L"Again";
+        if (const size_t second = ringKeys.find(L'\n'); second != std::wstring::npos) {
+            ringAgain = ringKeys.substr(second + 1);
+            ringKeys.resize(second);
+        }
+        // Nyatch: ringing, its two buttons at the right: again (or snooze) and stop. Clicks find them here.
+        float textRight = rect.right - 14.0f;
+        if (ringing) {
+            const float bh = 30.0f, top = cy - bh * 0.5f;
+            const D2D1_RECT_F stop = D2D1::RectF(rect.right - 16.0f - 64.0f, top, rect.right - 16.0f, top + bh);
+            const D2D1_RECT_F again = D2D1::RectF(stop.left - 8.0f - 80.0f, top, stop.left - 8.0f, top + bh);
+            // Kept in the window's pixels: through the drawing's transform (the island's scale and place) and its DPI.
+            {
+                D2D1_MATRIX_3X2_F m{};
+                target_->GetTransform(&m);
+                FLOAT dpiX = 96.0f, dpiY = 96.0f;
+                target_->GetDpi(&dpiX, &dpiY);
+                auto toWindow = [&](const D2D1_RECT_F& r) {
+                    const D2D1_POINT_2F a = D2D1::Point2F(r.left * m._11 + r.top * m._21 + m._31, r.left * m._12 + r.top * m._22 + m._32);
+                    const D2D1_POINT_2F b = D2D1::Point2F(r.right * m._11 + r.bottom * m._21 + m._31, r.right * m._12 + r.bottom * m._22 + m._32);
+                    return D2D1::RectF(std::min(a.x, b.x) * dpiX / 96.0f, std::min(a.y, b.y) * dpiY / 96.0f,
+                                       std::max(a.x, b.x) * dpiX / 96.0f, std::max(a.y, b.y) * dpiY / 96.0f);
+                };
+                g_ringAgainRect = toWindow(again);
+                g_ringStopRect = toWindow(stop);
+            }
+            if (ID2D1SolidColorBrush* fill = AcquireBrush(material_.raisedStrong)) {
+                target_->FillRoundedRectangle(D2D1::RoundedRect(again, 8.0f, 8.0f), fill);
+            }
+            if (ID2D1SolidColorBrush* fill = AcquireBrush(D2D1::ColorF(0.86f, 0.20f, 0.17f, 1.0f))) {
+                target_->FillRoundedRectangle(D2D1::RoundedRect(stop, 8.0f, 8.0f), fill);
+            }
+            if (smallTextFormat_) {
+                const DWRITE_TEXT_ALIGNMENT oldAlign = smallTextFormat_->GetTextAlignment();
+                const DWRITE_PARAGRAPH_ALIGNMENT oldPara = smallTextFormat_->GetParagraphAlignment();
+                smallTextFormat_->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
+                smallTextFormat_->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+                textBrush_->SetOpacity(0.96f);
+                target_->DrawTextW(ringAgain.c_str(), static_cast<UINT32>(ringAgain.size()), smallTextFormat_.Get(), again, textBrush_.Get(), D2D1_DRAW_TEXT_OPTIONS_CLIP);
+                if (ID2D1SolidColorBrush* white = AcquireBrush(D2D1::ColorF(1, 1, 1, 1))) {
+                    static const std::wstring kStop = L"Stop";
+                    target_->DrawTextW(kStop.c_str(), static_cast<UINT32>(kStop.size()), smallTextFormat_.Get(), stop, white, D2D1_DRAW_TEXT_OPTIONS_CLIP);
+                }
+                smallTextFormat_->SetTextAlignment(oldAlign);
+                smallTextFormat_->SetParagraphAlignment(oldPara);
+            }
+            textRight = again.left - 10.0f;
+        } else {
+            g_ringAgainRect = {};
+            g_ringStopRect = {};
+        }
+        std::wstring label = ringing ? ringLabel
+            : state.timer.justFinished
             ? (state.timer.isBreak ? L"Break Complete" : L"Focus Complete")
             : (state.timer.isBreak ? L"Break Timer" : L"Focus Timer");
-        D2D1_RECT_F labelRect = D2D1::RectF(tx, cy - 16.0f, rect.right - 14.0f, cy - 1.0f);
+        D2D1_RECT_F labelRect = D2D1::RectF(tx, cy - 16.0f, textRight, cy - 1.0f);
         target_->DrawTextW(label.c_str(), static_cast<UINT32>(label.size()),
                            smallTextFormat_.Get(), labelRect, mutedBrush_.Get(),
                            D2D1_DRAW_TEXT_OPTIONS_CLIP);
 
-        wchar_t value[32] = {};
+        wchar_t value[64] = {};
         int rem = static_cast<int>(std::ceil(remaining));
-        swprintf_s(value, L"%d:%02d", rem / 60, rem % 60);
-        D2D1_RECT_F valueRect = D2D1::RectF(tx, cy - 1.0f, rect.right - 14.0f, cy + 16.0f);
+        if (ringing) swprintf_s(value, L"%s", ringKeys.c_str());
+        else swprintf_s(value, L"%d:%02d", rem / 60, rem % 60);
+        D2D1_RECT_F valueRect = D2D1::RectF(tx, cy - 1.0f, textRight, cy + 16.0f);
         textBrush_->SetOpacity(0.95f);
         target_->DrawTextW(value, static_cast<UINT32>(wcslen(value)), textFormat_.Get(),
                            valueRect, textBrush_.Get(), D2D1_DRAW_TEXT_OPTIONS_CLIP);
@@ -26553,7 +26851,7 @@ Activity ActivityForKind(IslandKind kind, const Settings& settings, const Shared
             activity.height = 54.0f;
             break;
         case IslandKind::Timer:
-            activity.width = 260.0f;
+            activity.width = state.timer.ringing ? 470.0f : 260.0f;
             activity.height = 54.0f;
             break;
         case IslandKind::DoNotDisturb:
@@ -26591,8 +26889,10 @@ Activity ActivityForKind(IslandKind kind, const Settings& settings, const Shared
 
 std::vector<IslandKind> ChooseActivities(const SharedState& state, const Settings& settings, double now) {
     std::vector<IslandKind> activities;
+    // Nyatch: a timer or alarm ringing comes before everything, a game included.
+    if (state.timer.ringing) activities.push_back(IslandKind::Timer);
     if (g_gameMode.load(std::memory_order_relaxed)) {
-        activities.push_back(IslandKind::Idle);  // the game overlay, and nothing else
+        if (activities.empty()) activities.push_back(IslandKind::Idle);  // the game overlay, and nothing else
         return activities;
     }
 
@@ -26635,7 +26935,7 @@ std::vector<IslandKind> ChooseActivities(const SharedState& state, const Setting
     if (settings.progress && state.progress.active) {
         activities.push_back(IslandKind::Progress);
     }
-    if (settings.timerEnabled &&
+    if (settings.timerEnabled && !state.timer.ringing &&
         ((state.timer.justFinished && now < state.timer.finishedExpiresAt) ||
          state.timer.active)) {
         activities.push_back(IslandKind::Timer);
@@ -28162,6 +28462,16 @@ LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
                 int xPos = GET_X_LPARAM(lParam);
                 int yPos = GET_Y_LPARAM(lParam);
 
+                // Nyatch: a timer or alarm ringing: its Again (Snooze) and Stop buttons.
+                if (g_ringing.load()) {
+                    const float px = static_cast<float>(xPos), py = static_cast<float>(yPos);
+                    auto inside = [&](const D2D1_RECT_F& r) { return r.right > r.left && px >= r.left && px <= r.right && py >= r.top && py <= r.bottom; };
+                    if (inside(g_ringAgainRect) || inside(g_ringStopRect)) {
+                        DeckNative::Notify(12, inside(g_ringAgainRect) ? 1 : 2, 0);
+                        return 0;
+                    }
+                }
+
                 s_touchStart.x = xPos;
                 s_touchStart.y = yPos;
                 s_touchStartTime = GetTickCount64();
@@ -28973,7 +29283,8 @@ DWORD WINAPI RenderThreadProc(void*) {
                 setHighResTimer(false);
                 if (parkedForFullscreen) {
                     MsgWaitForMultipleObjects(1, &g_stopEvent, FALSE, 1500, QS_ALLINPUT);
-                    const bool stillFullscreen = g_settings.autoHideFullscreen &&
+                    // (A timer or alarm ringing shows over a full-screen app.)
+                    const bool stillFullscreen = g_settings.autoHideFullscreen && !ShownOverFullscreen() &&
                         !(g_settings.gameOverlay || g_gameOverlayPinned.load()) && IsForegroundFullscreen(hwnd);
                     g_isFullscreen.store(stillFullscreen, std::memory_order_relaxed);
                     if (!stillFullscreen) {
@@ -29262,10 +29573,12 @@ DWORD WINAPI RenderThreadProc(void*) {
 
         static bool isFullscreen = false;
         static double lastFullscreenCheck = -1.0;  // -1.0 guarantees the very first iteration checks
-        if (now - lastFullscreenCheck > 0.5) {
+        // (Every frame while something is shown over a full-screen app, so it is not hidden again early.)
+        if (now - lastFullscreenCheck > 0.5 || ShownOverFullscreen()) {
             const bool overlayWanted = g_settings.gameOverlay || g_gameOverlayPinned.load();
             const bool fullscreenInFront = (g_settings.autoHideFullscreen || overlayWanted) && IsForegroundFullscreen(hwnd);
-            const bool newFullscreen = fullscreenInFront && g_settings.autoHideFullscreen && !overlayWanted;
+            // Nyatch: a timer or alarm ringing shows over a full-screen app, so it can be heard and stopped.
+            const bool newFullscreen = fullscreenInFront && g_settings.autoHideFullscreen && !overlayWanted && !ShownOverFullscreen();
             if (g_gameMode.exchange(fullscreenInFront && overlayWanted) != (fullscreenInFront && overlayWanted)) {
                 g_layoutDirty = true;
             }
@@ -29284,8 +29597,9 @@ DWORD WINAPI RenderThreadProc(void*) {
         // been raised over the island. Cheap and rate-limited, and skipped
         // while the island is hidden or suppressed so it cannot un-hide itself.
         static double lastTopmostCheck = 0.0;
+        // (Quicker while something is shown over a full-screen app: that app has just come to the front.)
         if (!isFullscreen && !g_manuallyHidden.load() && !g_autoHiddenParked.load() &&
-            now - lastTopmostCheck > 1.0) {
+            now - lastTopmostCheck > (ShownOverFullscreen() ? 0.2 : 1.0)) {
             EnsureTopmost(hwnd, &pillRect);
             lastTopmostCheck = now;
         }
@@ -30101,6 +30415,21 @@ __declspec(dllexport) void NyatchDeckShowPage(const wchar_t* page, int index, in
 }
 
 // What the page on show should display, from the app (the Focus page's clocks).
+// Nyatch: a timer or alarm of the app's is ringing (its title, "Timer finished"), or stopped (empty or null).
+__declspec(dllexport) void NyatchSetRinging(const wchar_t* title) {
+    g_ringing = title && *title;
+    {
+        std::lock_guard lock(g_stateMutex);
+        g_state.timer.ringing = title && *title;
+        g_state.timer.ringTitle = title ? title : L"";
+    }
+    g_layoutDirty = true;
+    TriggerNudge();
+}
+
+// How the second notch's Pomodoro is, from the app: 0 not started, 1 running, 2 paused (for the top notch's menu).
+__declspec(dllexport) void NyatchSetFocusState(int state) { g_focusState = state; }
+
 __declspec(dllexport) void NyatchDeckSetPageData(const wchar_t* data) {
     {
         std::lock_guard lock(DeckNative::g_mutex);
@@ -30372,6 +30701,11 @@ __declspec(dllexport) void NyatchSetHost(void(__stdcall* ask)(uint64_t, const wc
                                          void(__stdcall* clearHistory)()) {
     g_hostAsk = ask;
     g_hostClearHistory = clearHistory;
+}
+
+// The host's handler for a setting changed by the island's right-click menu: (name, value), "" for the default.
+__declspec(dllexport) void NyatchSetChangeHost(void(__stdcall* change)(const wchar_t*, const wchar_t*)) {
+    g_hostChange = change;
 }
 
 // Text for the question with this id: state 0 = more is coming, 1 = finished,

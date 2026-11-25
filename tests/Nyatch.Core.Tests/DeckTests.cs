@@ -69,28 +69,6 @@ public class DeckTests
     }
 
     [Fact]
-    public void PomodoroAlternatesAndTakesALongBreakAfterFour()
-    {
-        var pomodoro = new Pomodoro();
-        var now = T0;
-        pomodoro.Clock.Start(now);
-        Assert.Null(pomodoro.Advance(now.AddMinutes(24)));
-        var breaks = new List<TimeSpan>();
-        for (var turn = 0; turn < 4; turn++)
-        {
-            now += Pomodoro.Focus;
-            Assert.Equal("Focus turn done", pomodoro.Advance(now));
-            Assert.True(pomodoro.OnBreak);
-            breaks.Add(pomodoro.Clock.Length);
-            now += pomodoro.Clock.Length;
-            Assert.Equal("Break over", pomodoro.Advance(now));
-            Assert.False(pomodoro.OnBreak);
-        }
-        Assert.Equal([Pomodoro.ShortBreak, Pomodoro.ShortBreak, Pomodoro.ShortBreak, Pomodoro.LongBreak], breaks);
-        Assert.Equal(4, pomodoro.Done);
-    }
-
-    [Fact]
     public void KeepsTodoListsAndNotes()
     {
         var folder = Path.Combine(Path.GetTempPath(), "nyatch-test-" + Guid.NewGuid().ToString("N"));

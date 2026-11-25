@@ -47,7 +47,7 @@ public class SettingsTests
     {
         var schema = SettingsSchema.Load();
         Assert.Equal(14, schema.Groups.Count);
-        Assert.Equal(169, schema.All.Count());
+        Assert.Equal(170, schema.All.Count());
         Assert.All(schema.All, s => Assert.False(string.IsNullOrWhiteSpace(s.Name)));
         // Every choice's default is one of its options.
         Assert.All(schema.All.Where(s => s.Kind == SettingKind.Choice), s => Assert.Contains(s.Options, o => o.Value == s.Default));

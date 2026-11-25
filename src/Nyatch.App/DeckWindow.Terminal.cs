@@ -43,6 +43,7 @@ internal sealed partial class DeckWindow
     private Session? _session;
     private int _sessionNumber;
     private readonly DispatcherTimer _terminalFlush = new() { Interval = TimeSpan.FromMilliseconds(40) };
+    private bool _flushHooked;
 
     private static string? PowerShellPath()
     {
@@ -74,11 +75,15 @@ internal sealed partial class DeckWindow
         Launch(session);
         _sessions.Add(session);
         _session = session;
-        if (!_terminalFlush.IsEnabled)
+        if (!_flushHooked)
         {
+            _flushHooked = true;
             _terminalFlush.Tick += (_, _) => FlushTerminals();
-            _terminalFlush.Start();
         }
+        // Started afresh with each tab: a timer left stalled (after a menu's loop) would leave the new tab on "…"
+        // until something else woke the page.
+        _terminalFlush.Stop();
+        _terminalFlush.Start();
         return session;
     }
 
