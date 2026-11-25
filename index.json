@@ -1,0 +1,63 @@
+{
+  "format": 1,
+  "packs": [
+    {
+      "id": "bocchi",
+      "name": "Bocchi the Rock!",
+      "version": "1.0",
+      "author": "Arkhins",
+      "licence": "",
+      "description": "Hitori \"Bocchi\" Gotoh, the shy guitarist of Kessoku Band, for every moment of the day.",
+      "minApp": "",
+      "pictures": 27,
+      "covers": [
+        "time",
+        "calendar",
+        "clipboard",
+        "focus"
+      ],
+      "size": 16597306,
+      "sha256": "f5eb47aaaa53a173d2b76899fcd967cf08aa44e4e9e5e9f0bae284e10a94ee08",
+      "file": "bocchi/bocchi.nyatch",
+      "preview": "bocchi/preview.png",
+      "accent": "#EBA8C1",
+      "font": ""
+    },
+    {
+      "id": "miku",
+      "name": "Miku",
+      "version": "1.0",
+      "author": "Arkhins",
+      "licence": "",
+      "description": "Chibi Hatsune Miku stickers and GIFs, for every moment of the day.",
+      "minApp": "1.0.0",
+      "pictures": 102,
+      "covers": [
+        "time",
+        "calendar",
+        "weather",
+        "hardware",
+        "tray",
+        "player",
+        "lyrics",
+        "lookup",
+        "notice",
+        "picker",
+        "apps",
+        "clipboard",
+        "notifications",
+        "chat",
+        "focus",
+        "notes",
+        "terminal",
+        "online"
+      ],
+      "size": 8268499,
+      "sha256": "943aa524f3c6eee4b5cdd0192fe1da2516faca284b9ec83def2eff37dc72aac2",
+      "file": "miku/miku.nyatch",
+      "preview": "miku/preview.png",
+      "accent": "#39C5BB",
+      "font": ""
+    }
+  ]
+}
