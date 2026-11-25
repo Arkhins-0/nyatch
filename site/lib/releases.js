@@ -1,110 +1,61 @@
-// Nyatch's releases, kept outside the site so a new one is served without rebuilding it:
-//   Neon (DATABASE_URL)   one row per release: its tag, name, notes, date and files
-//   Cloudflare R2         the files themselves, at <R2_RELEASES_PREFIX><tag>/<file>, in the private bucket
+// Nyatch's releases, read from the repository's GitHub releases when the site is asked for them, so a new
+// release shows without rebuilding the site (as CTR's site does). The files stay on GitHub: a download is
+// sent on to GitHub's own link.
 //
-// tools/publish-release.mjs writes both; the functions in api/ read them.
-
-import { neon } from '@neondatabase/serverless';
-import { AwsClient } from 'aws4fetch';
+// The repository is public, so no token is needed; GITHUB_TOKEN (read-only), when set, raises GitHub's limit
+// of 60 calls an hour per address to 5,000. Each copy of a function keeps the list for a minute, and Vercel's
+// cache keeps the pages for a minute, so GitHub is asked rarely.
 
 export const SITE = 'https://nyatch.arkhins.com';
 
-const need = (name) => {
-  const value = process.env[name];
-  if (!value) throw new Error(`${name} is not set.`);
-  return value;
-};
+const REPO = () => process.env.NYATCH_REPO || 'Arkhins-0/nyatch';
+const KEEP_MS = 60 * 1000;
+let kept = null;
 
-export const sql = () => neon(need('DATABASE_URL'));
-
-export async function makeTable(db = sql()) {
-  await db`create table if not exists releases (
-    tag          text primary key,
-    name         text not null,
-    notes        text not null default '',
-    published_at timestamptz not null default now(),
-    assets       jsonb not null,
-    listed       boolean not null default true
-  )`;
+/** The full releases with files, newest first, in the site's own shape: tag, name, notes, date, files. */
+export async function releases() {
+  if (kept && Date.now() - kept.at < KEEP_MS) return kept.rows;
+  const token = process.env.GITHUB_TOKEN;
+  const response = await fetch(`https://api.github.com/repos/${REPO()}/releases?per_page=30`, {
+    headers: {
+      Accept: 'application/vnd.github+json',
+      'User-Agent': 'nyatch-site',
+      'X-GitHub-Api-Version': '2022-11-28',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  if (!response.ok) {
+    // A failed call keeps what was read before, when there is something.
+    if (kept) return kept.rows;
+    throw new Error(`GitHub answered ${response.status}.`);
+  }
+  const rows = (await response.json())
+    .filter((r) => !r.draft && !r.prerelease)
+    .map((r) => ({
+      tag: r.tag_name,
+      name: r.name || `Nyatch ${String(r.tag_name).replace(/^v/, '')}`,
+      notes: r.body || '',
+      published_at: r.published_at,
+      assets: r.assets
+        .filter((a) => /^[A-Za-z0-9._-]+$/.test(a.name))
+        .map((a) => ({
+          name: a.name,
+          size: a.size,
+          url: a.browser_download_url,
+          sha256: /^sha256:([0-9a-f]{64})$/.exec(a.digest ?? '')?.[1] ?? null,
+        })),
+    }));
+  kept = { at: Date.now(), rows };
+  return rows;
 }
 
-/** The listed releases, newest first. */
-export async function releases(limit = 30) {
-  return sql()`select tag, name, notes, published_at, assets from releases where listed order by published_at desc limit ${limit}`;
-}
-
-/** One listed release, or null. */
+/** One release, or null. */
 export async function release(tag) {
-  const rows = await sql()`select tag, name, notes, published_at, assets from releases where listed and tag = ${tag}`;
-  return rows[0] ?? null;
+  return (await releases()).find((r) => r.tag === tag) ?? null;
 }
 
-// ---------- R2 ----------
-
-const prefix = () => process.env.R2_RELEASES_PREFIX || 'releases/';
-const r2 = () => new AwsClient({ accessKeyId: need('R2_ACCESS_KEY_ID'), secretAccessKey: need('R2_SECRET_ACCESS_KEY'), service: 's3', region: 'auto' });
-const objectUrl = (tag, file) =>
-  new URL(`https://${need('R2_ACCOUNT_ID')}.r2.cloudflarestorage.com/${encodeURIComponent(need('R2_BUCKET'))}/${prefix()}${encodeURIComponent(tag)}/${encodeURIComponent(file)}`);
-
-/** A link to a release file that works for ten minutes (the bucket itself stays private). */
-export async function fileLink(tag, file) {
-  const url = objectUrl(tag, file);
-  url.searchParams.set('X-Amz-Expires', '600');
-  url.searchParams.set('response-content-disposition', `attachment; filename="${file}"`);
-  const signed = await r2().sign(new Request(url, { method: 'GET' }), { aws: { signQuery: true } });
-  return signed.url;
-}
-
-/** One request to R2, tried up to four times (a slow connection can drop one). */
-async function send(client, url, init, what) {
-  for (let attempt = 1; ; attempt++) {
-    try {
-      const response = await client.fetch(url, init);
-      if (response.ok) return response;
-      const text = await response.text();
-      if (response.status < 500 || attempt >= 4) throw new Error(`R2 answered ${response.status} for ${what}: ${text}`);
-    } catch (error) {
-      if (attempt >= 4 || /R2 answered 4/.test(error.message)) throw error;
-    }
-    await new Promise((resolve) => setTimeout(resolve, attempt * 2000));
-  }
-}
-
-const PART = 8 * 1024 * 1024;
-
-/** Puts one release file in the bucket: in 8 MB parts when it is big, each part retried on its own. */
-export async function upload(tag, file, bytes, type, progress = () => {}) {
-  const client = r2();
-  const url = objectUrl(tag, file);
-  if (bytes.length <= PART) {
-    await send(client, url, { method: 'PUT', body: bytes, headers: { 'Content-Type': type } }, file);
-    return;
-  }
-  const start = new URL(url);
-  start.searchParams.set('uploads', '');
-  const created = await (await send(client, start, { method: 'POST', headers: { 'Content-Type': type } }, file)).text();
-  const uploadId = /<UploadId>([^<]+)<\/UploadId>/.exec(created)?.[1];
-  if (!uploadId) throw new Error(`R2 gave no upload id for ${file}.`);
-  const parts = [];
-  try {
-    for (let offset = 0, number = 1; offset < bytes.length; offset += PART, number++) {
-      const part = new URL(url);
-      part.searchParams.set('partNumber', String(number));
-      part.searchParams.set('uploadId', uploadId);
-      const response = await send(client, part, { method: 'PUT', body: bytes.subarray(offset, offset + PART) }, `${file} part ${number}`);
-      parts.push(`<Part><PartNumber>${number}</PartNumber><ETag>${response.headers.get('etag')}</ETag></Part>`);
-      progress(Math.min(offset + PART, bytes.length), bytes.length);
-    }
-    const done = new URL(url);
-    done.searchParams.set('uploadId', uploadId);
-    await send(client, done, { method: 'POST', body: `<CompleteMultipartUpload>${parts.join('')}</CompleteMultipartUpload>` }, file);
-  } catch (error) {
-    const cancel = new URL(url);
-    cancel.searchParams.set('uploadId', uploadId);
-    await client.fetch(cancel, { method: 'DELETE' }).catch(() => {});
-    throw error;
-  }
-}
+/** Where a release's file is downloaded from: GitHub. */
+export const fileLink = (row, file) => row.assets.find((a) => a.name === file)?.url ?? null;
 
 // ---------- What the site shows ----------
 
@@ -187,3 +138,69 @@ export const releasesHtml = (rows) =>
         )
         .join('\n')
     : '<p class="quiet">No releases yet. The first one is on its way.</p>';
+
+// ---------- The download page ----------
+
+const fileUrl = (tag, name) => `/releases/${encodeURIComponent(tag)}/${encodeURIComponent(name)}`;
+
+/** One way to install a version: its file, what it is, and its checksum and signature. */
+function optionHtml(row, asset, { title, line, recommended }) {
+  const sum = row.assets.find((a) => a.name === `${asset.name}.sha256`);
+  const sig = row.assets.find((a) => a.name === `${asset.name}.sig`);
+  const kind = /\.msi$/i.test(asset.name) ? '.msi' : '.exe';
+  const extras = [sum && `<a href="${fileUrl(row.tag, sum.name)}">Checksum file</a>`, sig && `<a href="${fileUrl(row.tag, sig.name)}">Signature</a>`].filter(Boolean);
+  return `
+      <article class="option${recommended ? ' first' : ''}">
+        <div class="option-head">
+          <h2>${escape(title)}</h2>
+          ${recommended ? '<span class="tag">Recommended</span>' : ''}
+        </div>
+        <p class="file">${escape(asset.name)} · ${megabytes(asset.size)}</p>
+        <p class="what">${escape(line)}</p>
+        <a class="pill ${recommended ? 'dark' : 'outline'}" href="${fileUrl(row.tag, asset.name)}">Download ${kind}</a>
+        ${asset.sha256 ? `<p class="hash"><span>SHA-256</span><code>${escape(asset.sha256)}</code></p>` : ''}
+        ${extras.length ? `<p class="extras">${extras.join(' · ')}</p>` : ''}
+      </article>`;
+}
+
+/** The download page's content: the newest version's files, how to check them, and the older versions. */
+export function downloadsHtml(rows) {
+  const withInstaller = rows.filter((r) => installerOf(r));
+  const latest = withInstaller[0];
+  if (!latest) return '<p class="quiet downloads-empty">No version to download yet. The first one is on its way.</p>';
+  const msi = latest.assets.find((a) => /\.msi$/i.test(a.name));
+  const exe = latest.assets.find((a) => /\.exe$/i.test(a.name));
+  const options = [
+    msi && optionHtml(latest, msi, { title: 'Windows Installer', line: 'The standard installer. Open it and follow the steps.', recommended: true }),
+    exe && optionHtml(latest, exe, { title: 'Setup program', line: 'The same installer inside a setup program. Use it if .msi files do not open on your PC.', recommended: !msi }),
+  ].filter(Boolean);
+  const first = msi ?? exe;
+  const version = latest.tag.replace(/^v/, '');
+  const older = withInstaller.slice(1).map((r) => {
+    const files = r.assets.filter((a) => /\.(msi|exe)$/i.test(a.name));
+    return `
+        <li>
+          <span class="version">${escape(r.name || r.tag)}</span>
+          <time datetime="${escape(new Date(r.published_at).toISOString())}">${day(r.published_at)}</time>
+          <span class="links">${files.map((a) => `<a href="${fileUrl(r.tag, a.name)}">${escape(a.name.replace(/^.*\./, '.'))} · ${megabytes(a.size)}</a>`).join('')}</span>
+        </li>`;
+  });
+  return `
+    <p class="version-line">Version ${escape(version)} · ${day(latest.published_at)} · <a href="/releases#${escape(latest.tag)}">What changed</a></p>
+    <div class="options">${options.join('')}
+    </div>
+
+    <section class="before">
+      <h2>Before you open it</h2>
+      <dl>
+        <div><dt>Windows may warn you</dt><dd>Nyatch is not signed with a paid certificate yet, so SmartScreen can say it protected your PC. Click <strong>More info</strong>, then <strong>Run anyway</strong>.</dd></div>
+        <div><dt>Check the file</dt><dd>In PowerShell, in the folder you saved it to: <code>Get-FileHash .\\${escape(first.name)}</code>. The SHA-256 should be the one shown above.</dd></div>
+        <div><dt>Updates come by themselves</dt><dd>Once installed, Nyatch checks for new versions and updates itself. You will not need this page again.</dd></div>
+      </dl>
+    </section>
+
+    <section class="older">
+      <h2>Older versions</h2>
+      ${older.length ? `<ul>${older.join('')}\n      </ul>` : `<p class="quiet">None yet: ${escape(version)} is the first version.</p>`}
+    </section>`;
+}

@@ -3,9 +3,8 @@
 #   .\build.ps1 -Run       build, then start the app
 #   .\build.ps1 -Test      build, then run the tests
 #   .\build.ps1 -Exe       build, then make the installer: out\Nyatch-Setup-<version>.exe (the .msi inside it)
-#   .\build.ps1 -Release   make the installer, sign it, publish it as a GitHub release, and put it on
-#                          nyatch.arkhins.com (files to Cloudflare R2, the release to Neon; keys from
-#                          site\.env.local), which serves it at once (version from version.txt;
+#   .\build.ps1 -Release   make the installer, sign it and publish it as a GitHub release, which
+#                          nyatch.arkhins.com serves within a minute (version from version.txt;
 #                          notes with -Notes "...")
 param(
     [ValidateSet("Debug", "Release")] [string]$Configuration = "Release",
@@ -146,16 +145,8 @@ if ($Exe) {
         gh release create $tag @files --repo $ReleaseRepo --title "Nyatch $Version" --notes $Notes
         if ($LASTEXITCODE -ne 0) { throw "The release was not published." }
         Write-Host "Published Nyatch $Version to https://github.com/$ReleaseRepo/releases/tag/$tag"
-        # The site: the files to Cloudflare R2, the release to Neon (keys from site\.env.local). It serves
-        # the release at once, with no rebuild.
-        $site = Join-Path $root "site"
-        if (-not (Test-Path (Join-Path $site "node_modules"))) {
-            Push-Location $site
-            try { npm ci --no-audit --no-fund; if ($LASTEXITCODE -ne 0) { throw "The site's packages did not install." } }
-            finally { Pop-Location }
-        }
-        node (Join-Path $site "tools\publish-release.mjs") --tag $tag --name "Nyatch $Version" --notes $Notes @files
-        if ($LASTEXITCODE -ne 0) { throw "The release is on GitHub but not on the site. Run site\tools\publish-release.mjs again with the same files." }
+        # nyatch.arkhins.com reads the GitHub releases when it is asked: it shows this one within a minute.
+        Write-Host "nyatch.arkhins.com shows it within a minute."
     }
 }
 

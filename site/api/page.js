@@ -1,17 +1,19 @@
-// The home page and the releases page, filled in with the newest release when they are asked for (and kept
-// by Vercel's cache for a minute), so a new release shows without rebuilding the site.
+// The home page, the download page and the releases page, filled in with the releases when they are asked
+// for (and kept by Vercel's cache for a minute), so a new release shows without rebuilding the site.
 
 import { readFileSync } from 'node:fs';
-import { downloadMeta, installerOf, releases, releasesHtml } from '../lib/releases.js';
+import { downloadMeta, downloadsHtml, installerOf, releases, releasesHtml } from '../lib/releases.js';
 
 // Found next to this file (on Vercel the site sits in a folder of its own, not where the function starts).
 const templates = {
   index: readFileSync(new URL('../public/index.html', import.meta.url), 'utf8'),
   releases: readFileSync(new URL('../public/releases.html', import.meta.url), 'utf8'),
+  download: readFileSync(new URL('../public/download.html', import.meta.url), 'utf8'),
 };
 
 export async function GET(request) {
-  const name = new URL(request.url).searchParams.get('name') === 'releases' ? 'releases' : 'index';
+  const asked = new URL(request.url).searchParams.get('name');
+  const name = asked === 'releases' || asked === 'download' ? asked : 'index';
   let rows = null;
   try {
     rows = await releases();
@@ -19,7 +21,7 @@ export async function GET(request) {
     console.error(error);
   }
   const latest = rows?.find((r) => installerOf(r)) ?? null;
-  // Without the list (Neon not answering), the button still points at /download.
+  // Without the list (GitHub not answering), the button still points at /download.
   const ready = latest || rows === null;
   const html = templates[name]
     .replaceAll('{{DOWNLOAD_URL}}', ready ? '/download' : '#download')
@@ -27,7 +29,8 @@ export async function GET(request) {
     .replaceAll('{{DOWNLOAD_LABEL}}', ready ? 'Download for Windows' : 'Coming soon')
     .replaceAll('{{DOWNLOAD_META}}', latest ? downloadMeta(latest) : ready ? '' : 'The first release is on its way.')
     .replaceAll('{{YEAR}}', String(Math.max(2026, new Date().getFullYear())))
-    .replace('{{RELEASES}}', rows ? releasesHtml(rows) : '<p class="quiet">The list could not be loaded. Try again in a minute.</p>');
+    .replace('{{RELEASES}}', rows ? releasesHtml(rows) : '<p class="quiet">The list could not be loaded. Try again in a minute.</p>')
+    .replace('{{DOWNLOADS}}', rows ? downloadsHtml(rows) : '<p class="quiet">The downloads could not be loaded. Try again in a minute.</p>');
   return new Response(html, {
     headers: {
       'Content-Type': 'text/html; charset=utf-8',

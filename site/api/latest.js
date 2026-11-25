@@ -5,7 +5,7 @@ import { githubShape, installerOf, releases } from '../lib/releases.js';
 export async function GET() {
   let rows;
   try {
-    rows = await releases(10);
+    rows = await releases();
   } catch (error) {
     console.error(error);
     // An error, not an empty answer: a copy of Nyatch then simply tries again later.

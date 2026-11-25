@@ -1,5 +1,4 @@
-// /releases/<tag>/<file>: one file of a release (installer, checksum, signature), handed out from R2
-// through a link that works for ten minutes.
+// /releases/<tag>/<file>: one file of a release (installer, checksum, signature), sent on to GitHub.
 
 import { fileLink, isFile, isTag, release } from '../lib/releases.js';
 
@@ -17,6 +16,7 @@ export async function GET(request) {
     console.error(error);
     return new Response('The releases could not be read.', { status: 503, headers: { 'Cache-Control': 'no-store' } });
   }
-  if (!row || !row.assets.some((a) => a.name === file)) return gone();
-  return new Response(null, { status: 302, headers: { Location: await fileLink(tag, file), 'Cache-Control': 'no-store' } });
+  const link = row && fileLink(row, file);
+  if (!link) return gone();
+  return new Response(null, { status: 302, headers: { Location: link, 'Cache-Control': 'public, s-maxage=300' } });
 }
