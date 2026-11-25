@@ -16368,6 +16368,7 @@ class Renderer {
         mutedBrush_.Reset();
         tintBrush_.Reset();
         shadowBrush_.Reset();
+        for (ShadowBitmap& c : shadowCache_) c.bitmap.Reset();
         micDotBrush_.Reset();
         micGlowBrush_.Reset();
         camDotBrush_.Reset();
@@ -17425,43 +17426,99 @@ class Renderer {
         target_->SetTransform(oldTransform);
     }
 
-    // A real soft shadow, approximated by stacking concentric rounded shapes
-    // with a quadratic alpha falloff. There is no GPU device here (this renders
-    // to a DC-bound target for UpdateLayeredWindow), so a Gaussian blur effect
-    // is not available -- but the render padding around the pill leaves room to
-    // fake it convincingly and cheaply.
+    // Nyatch: a real soft shadow, worked out per pixel (a Gaussian blur of the shape, from its distance to
+    // each pixel) and drawn as one bitmap. There is no GPU device here (this renders to a DC-bound target
+    // for UpdateLayeredWindow), so no blur effect; stacked outlines, as before, added up into a grey band
+    // with a haze around it. The last few bitmaps are kept, as the size only changes while animating.
+    struct ShadowBitmap {
+        int w = 0, h = 0, radius = 0, spread = 0, dpi = 0;
+        bool squareTop = false;
+        float extLeft = 0.0f, extTop = 0.0f;
+        ComPtr<ID2D1Bitmap> bitmap;
+    };
+    std::array<ShadowBitmap, 4> shadowCache_;
+    size_t shadowNext_ = 0;
+
+    ID2D1Bitmap* ShadowFor(float width, float height, float radius, float spread, bool squareTop, float* extLeft, float* extTop) {
+        FLOAT dpiX = 96.0f, dpiY = 96.0f;
+        target_->GetDpi(&dpiX, &dpiY);
+        const float scale = std::max(0.5f, dpiX / 96.0f);
+        const int w = static_cast<int>(std::lround(width * scale));
+        const int h = static_cast<int>(std::lround(height * scale));
+        const int r = static_cast<int>(std::lround(radius * scale));
+        const int sp = static_cast<int>(std::lround(spread * scale));
+        const int dpi = static_cast<int>(std::lround(dpiX));
+        if (w <= 0 || h <= 0 || sp <= 0) return nullptr;
+        for (ShadowBitmap& c : shadowCache_) {
+            if (c.bitmap && c.w == w && c.h == h && c.radius == r && c.spread == sp && c.dpi == dpi && c.squareTop == squareTop) {
+                *extLeft = c.extLeft;
+                *extTop = c.extTop;
+                return c.bitmap.Get();
+            }
+        }
+
+        // The blur: sigma a third of the spread, so the shadow has faded out at the spread's end; it sits
+        // a little low, as if lit from above.
+        const float sigma = sp / 3.0f;
+        const int ext = static_cast<int>(std::ceil(sigma * 3.0f)) + 1;
+        const int offset = static_cast<int>(std::lround(sp * 0.30f));
+        const int bw = w + ext * 2;
+        const int bh = h + ext * 2 + offset;
+        // Coverage by distance from the shape's edge (negative inside), in quarter pixels.
+        constexpr int kSub = 4;
+        const int range = ext * kSub;
+        std::vector<float> falloff(static_cast<size_t>(range * 2 + 1));
+        for (int i = -range; i <= range; ++i) {
+            const float d = static_cast<float>(i) / kSub;
+            falloff[static_cast<size_t>(i + range)] = 0.5f * std::erfc(d / (sigma * 1.41421356f));
+        }
+        const float rr = static_cast<float>(std::min({r, w / 2, h / 2}));
+        const float halfW = w * 0.5f, halfH = h * 0.5f;
+        const float centreX = ext + halfW, centreY = ext + offset + halfH;
+        std::vector<uint32_t> pixels(static_cast<size_t>(bw) * bh);
+        for (int y = 0; y < bh; ++y) {
+            const float py = y + 0.5f - centreY;
+            // The notch shape's top corners are square (they flare into the screen's edge).
+            const float cr = (squareTop && py < 0.0f) ? 0.0f : rr;
+            for (int x = 0; x < bw; ++x) {
+                const float px = x + 0.5f - centreX;
+                const float qx = std::fabs(px) - (halfW - cr);
+                const float qy = std::fabs(py) - (halfH - cr);
+                const float outside = std::hypot(std::max(qx, 0.0f), std::max(qy, 0.0f));
+                const float d = outside + std::min(std::max(qx, qy), 0.0f) - cr;
+                const int k = std::clamp(static_cast<int>(std::lround(d * kSub)), -range, range);
+                const uint32_t a = static_cast<uint32_t>(std::lround(falloff[static_cast<size_t>(k + range)] * 255.0f));
+                pixels[static_cast<size_t>(y) * bw + x] = a << 24;  // black, premultiplied
+            }
+        }
+        const D2D1_BITMAP_PROPERTIES props = D2D1::BitmapProperties(
+            D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED), dpiX, dpiY);
+        ComPtr<ID2D1Bitmap> bitmap;
+        if (FAILED(target_->CreateBitmap(D2D1::SizeU(bw, bh), pixels.data(), bw * 4, &props, &bitmap))) return nullptr;
+        ShadowBitmap& slot = shadowCache_[shadowNext_++ % shadowCache_.size()];
+        slot = {w, h, r, sp, dpi, squareTop, ext / scale, (ext) / scale, bitmap};
+        *extLeft = slot.extLeft;
+        *extTop = slot.extTop;
+        return slot.bitmap.Get();
+    }
+
     void DrawSoftShadow(D2D1_RECT_F rect, float radius) {
         // The island sits on top of the backdrop, so a shadow here would darken the blur.
         if (!g_settings.dropShadow || g_settings.backdropMaterial != BackdropMaterial::None) {
             return;
         }
-
         const float spread = Clamp(14.0f * g_settings.sizeScale, 6.0f, kRenderPadY - 4.0f);
-        const float yOffset = spread * 0.35f;
-        constexpr int kSteps = 7;
-
-        ID2D1SolidColorBrush* brush = AcquireBrush(material_.shadow);
-        if (!brush) {
+        float extLeft = 0.0f, extTop = 0.0f;
+        ID2D1Bitmap* bitmap = ShadowFor(rect.right - rect.left, rect.bottom - rect.top, radius, spread,
+                                        g_settings.notchStyle, &extLeft, &extTop);
+        if (!bitmap) {
             return;
         }
-
-        for (int i = kSteps; i >= 1; --i) {
-            const float t = static_cast<float>(i) / static_cast<float>(kSteps);
-            const float grow = spread * t;
-            // Quadratic falloff keeps the core dense and the outer edge feathered.
-            const float alpha = material_.shadow.a * (1.0f - t) * (1.0f - t) * 0.55f * settingsOpacity_;
-            if (alpha <= 0.002f) {
-                continue;
-            }
-            brush->SetOpacity(alpha);
-
-            const D2D1_RECT_F shadowRect = D2D1::RectF(
-                rect.left - grow, rect.top - grow * 0.55f + yOffset,
-                rect.right + grow, rect.bottom + grow + yOffset);
-            FillIslandShape(shadowRect, radius + grow, g_settings.w11Style,
-                            g_settings.notchStyle, brush);
-        }
-        brush->SetOpacity(1.0f);
+        const D2D1_SIZE_F size = bitmap->GetSize();
+        const float alpha = Clamp(material_.shadow.a * 0.75f * settingsOpacity_, 0.0f, 1.0f);
+        target_->DrawBitmap(bitmap, D2D1::RectF(rect.left - extLeft, rect.top - extTop, rect.left - extLeft + size.width,
+                                                rect.top - extTop + size.height),
+                            alpha, D2D1_BITMAP_INTERPOLATION_MODE_LINEAR);
     }
 
     // Vertical depth shading. This used to open with a white sheen across the
