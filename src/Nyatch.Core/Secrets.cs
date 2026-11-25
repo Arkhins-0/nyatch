@@ -65,7 +65,8 @@ public static class Secrets
             if (credential.CredentialBlobSize == 0 || credential.CredentialBlob == IntPtr.Zero) return null;
             var bytes = new byte[credential.CredentialBlobSize];
             Marshal.Copy(credential.CredentialBlob, bytes, 0, bytes.Length);
-            var value = Encoding.UTF8.GetString(bytes);
+            // Cleaned as it is used too, so a key kept before cleaning existed still works.
+            var value = Clean(Encoding.UTF8.GetString(bytes));
             return value.Length == 0 ? null : value;
         }
         finally
@@ -76,11 +77,21 @@ public static class Secrets
 
     public static bool Has(string id) => Get(id) is not null;
 
+    /// <summary>
+    /// A key as pasted, without what a copy can carry along: spaces and line breaks, invisible characters (a
+    /// zero-width space, a non-breaking space, a byte-order mark) and quotes around it. A key is plain ASCII,
+    /// and a request header must be (anything else made it fail: "headers must contain only ASCII characters").
+    /// </summary>
+    public static string Clean(string value) =>
+        new string(value.Where(c => c > ' ' && c < 0x7F && c is not ('"' or '\'' or '`')).ToArray());
+
     /// <summary>Store a secret. Throws <see cref="ArgumentException"/> with a message for the user if it cannot be kept.</summary>
     public static void Set(string id, string value)
     {
         if (!IsKnown(id)) throw new ArgumentException("Unknown key.");
-        value = value.Trim();
+        // A letter or digit that is not plain ASCII is not part of any key: it was copied wrong.
+        if (value.Any(c => c > 0x7F && char.IsLetterOrDigit(c))) throw new ArgumentException("That key has a letter that is not part of a key. Copy it again from the service's page.");
+        value = Clean(value);
         if (value.Length == 0) throw new ArgumentException("Nothing to save.");
         var bytes = Encoding.UTF8.GetBytes(value);
         if (bytes.Length > MaxBytes) throw new ArgumentException("That is too long to store.");

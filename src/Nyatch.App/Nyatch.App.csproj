@@ -38,6 +38,8 @@
     <!-- The licence and notice, shown from the About page and kept with every copy. -->
     <Content Include="..\..\LICENSE" Link="LICENSE" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\NOTICE" Link="NOTICE" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The LLM models list (models.json), for the very first time: the app reads the newest one from GitHub. -->
+    <Content Include="..\..\models.json" Link="models.json" CopyToOutputDirectory="PreserveNewest" />
     <!-- The weather pictures the island draws (an icon set, rendered from its SVGs in assets\weather\svg). -->
     <Content Include="..\..\assets\weather\png\*.png" Link="weather\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <!-- The assistants' logos, for the side panel's buttons that switch between the chats. -->

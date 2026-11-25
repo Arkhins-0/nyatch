@@ -207,6 +207,8 @@ internal sealed partial class DeckWindow
         if (what == 0)
         {
             page.Draft = AiEditText();
+            // The box cleared while the mic listens: starting over, so the mic stops.
+            if (page.Draft.Length == 0 && ReferenceEquals(_listeningFor, page)) StopListening();
         }
         else if (what == 1)
         {

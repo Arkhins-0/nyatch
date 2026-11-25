@@ -1,0 +1,135 @@
+{
+  "format": 1,
+  "updated": "2026-11-25",
+  "about": "The models Nyatch's LLM panel can use, most used first, for each service: what each is for, what it can take, and what it costs. Read from each service's own model list and OpenRouter's catalog. Prices are US dollars per million tokens, in and out. Models change often.",
+  "tags": {
+    "free": "Free to use, within the service's limits",
+    "pictures": "Can see pictures and screenshots",
+    "pdfs": "Reads PDFs as they are",
+    "text-only": "Reads text only: no pictures",
+    "best": "The service's most capable",
+    "balanced": "Good answers at a middle price",
+    "cheap": "Low cost",
+    "fast": "Quick answers",
+    "reasoning": "Thinks before answering, for hard questions",
+    "coding": "Made for code",
+    "long-context": "Reads very long documents (a million tokens or more)",
+    "web-search": "Searches the web for its answers"
+  },
+  "services": [
+    {
+      "id": "claude",
+      "name": "Claude",
+      "free": false,
+      "note": "Every Claude model sees pictures and reads PDFs.",
+      "models": [
+        { "id": "claude-opus-5-5", "name": "Claude Opus 5.5", "for": "Hard work: long documents, code and careful answers.", "tags": ["best", "pictures", "pdfs", "reasoning", "coding", "long-context"], "price": [4, 20] },
+        { "id": "claude-sonnet-5-5", "name": "Claude Sonnet 5.5", "for": "Everyday questions and code, at half Opus's price.", "tags": ["balanced", "pictures", "pdfs", "coding", "long-context"], "price": [2, 10] },
+        { "id": "claude-haiku-5-5", "name": "Claude Haiku 5.5", "for": "Quick, cheap answers.", "tags": ["fast", "cheap", "pictures", "pdfs", "long-context"], "price": [0.1, 0.5] },
+        { "id": "claude-fable-5-2", "name": "Claude Fable 5.2", "for": "The largest Claude, for the hardest questions.", "tags": ["best", "pictures", "pdfs", "reasoning", "long-context"], "price": [8, 40] }
+      ]
+    },
+    {
+      "id": "chatgpt",
+      "name": "ChatGPT",
+      "free": false,
+      "note": "Every model here sees pictures and reads PDFs.",
+      "models": [
+        { "id": "gpt-6.2-astra", "name": "GPT-6.2 Astra", "for": "OpenAI's most capable, for hard questions.", "tags": ["best", "pictures", "pdfs", "reasoning", "long-context"], "price": [8, 40] },
+        { "id": "gpt-6.2-sol", "name": "GPT-6.2 Sol", "for": "Everyday questions at a middle price.", "tags": ["balanced", "pictures", "pdfs", "long-context"], "price": [2, 10] },
+        { "id": "gpt-6.1-terra", "name": "GPT-6.1 Terra", "for": "Good answers at a lower price.", "tags": ["cheap", "pictures", "pdfs", "long-context"], "price": [1, 5] },
+        { "id": "gpt-6-luna", "name": "GPT-6 Luna", "for": "The quickest and cheapest.", "tags": ["fast", "cheap", "pictures", "pdfs", "long-context"], "price": [0.1, 0.5] },
+        { "id": "gpt-chat-latest", "name": "ChatGPT latest", "for": "The model the ChatGPT app uses now.", "tags": ["pictures", "pdfs"], "price": [5, 30] }
+      ]
+    },
+    {
+      "id": "gemini",
+      "name": "Gemini",
+      "free": true,
+      "note": "With a free Google AI Studio key, the Flash, Flash-Lite and Gemma models are free within limits; Pro needs billing. Every model here sees pictures and reads PDFs.",
+      "models": [
+        { "id": "gemini-flash-latest", "name": "Gemini Flash (latest)", "for": "Always the newest Flash: quick, good answers.", "tags": ["free", "fast", "pictures", "pdfs", "long-context"] },
+        { "id": "gemini-flash-lite-latest", "name": "Gemini Flash-Lite (latest)", "for": "The quickest, with the most free questions a day.", "tags": ["free", "fast", "cheap", "pictures", "pdfs"] },
+        { "id": "gemini-3.8-flash", "name": "Gemini 3.8 Flash", "for": "The newest numbered Flash.", "tags": ["free", "fast", "pictures", "pdfs", "long-context"] },
+        { "id": "gemini-3.5-flash-lite", "name": "Gemini 3.5 Flash-Lite", "for": "Light and quick.", "tags": ["free", "fast", "cheap", "pictures", "pdfs"] },
+        { "id": "gemini-pro-latest", "name": "Gemini Pro (latest)", "for": "Google's most capable, for hard questions.", "tags": ["best", "reasoning", "pictures", "pdfs", "long-context"] },
+        { "id": "gemma-4-31b-it", "name": "Gemma 4 31B", "for": "Google's open model.", "tags": ["free", "pictures"] }
+      ]
+    },
+    {
+      "id": "groq",
+      "name": "Groq",
+      "free": true,
+      "note": "Every Groq model is free within rate limits, and very fast. Groq's list says which see pictures only by name: Qwen 3.8 does.",
+      "models": [
+        { "id": "openai/gpt-oss-120b", "name": "GPT-OSS 120B", "for": "OpenAI's open model: good, fast answers.", "tags": ["free", "fast", "reasoning", "text-only"], "price": [0.05, 0.25] },
+        { "id": "qwen/qwen3.8-27b", "name": "Qwen 3.8 27B", "for": "Fast, and sees pictures and screenshots.", "tags": ["free", "fast", "pictures"] },
+        { "id": "openai/gpt-oss-20b", "name": "GPT-OSS 20B", "for": "The smaller, quicker GPT-OSS.", "tags": ["free", "fast", "cheap", "text-only"], "price": [0.03, 0.13] },
+        { "id": "allam-2-7b", "name": "ALLaM 2 7B", "for": "Small model, made for Arabic.", "tags": ["free", "fast", "text-only"] }
+      ]
+    },
+    {
+      "id": "mistral",
+      "name": "Mistral",
+      "free": true,
+      "note": "The free Experiment plan reaches every model, within limits. It is not on by itself: choose it at console.mistral.ai > Billing (it may ask to confirm a phone number), or every model answers 402.",
+      "models": [
+        { "id": "mistral-medium-latest", "name": "Mistral Medium (latest)", "for": "Mistral's best for everyday questions.", "tags": ["free", "best", "pictures", "pdfs"], "price": [1.5, 7.5] },
+        { "id": "mistral-small-latest", "name": "Mistral Small (latest)", "for": "Good answers, quickly and cheaply.", "tags": ["free", "balanced", "pictures"], "price": [0.15, 0.6] },
+        { "id": "ministral-14b-latest", "name": "Ministral 14B", "for": "Small and quick.", "tags": ["free", "fast", "cheap", "pictures"], "price": [0.2, 0.2] },
+        { "id": "ministral-8b-latest", "name": "Ministral 8B", "for": "Smaller and quicker still.", "tags": ["free", "fast", "cheap", "pictures"], "price": [0.15, 0.15] },
+        { "id": "magistral-medium-latest", "name": "Magistral Medium", "for": "Thinks step by step, for hard questions.", "tags": ["free", "reasoning", "pictures"] },
+        { "id": "codestral-latest", "name": "Codestral", "for": "Made for code.", "tags": ["free", "coding", "text-only"], "price": [0.3, 0.9] }
+      ]
+    },
+    {
+      "id": "grok",
+      "name": "Grok",
+      "free": false,
+      "note": "Names as OpenRouter's catalog lists them. Every model here sees pictures.",
+      "models": [
+        { "id": "grok-4.7", "name": "Grok 4.7", "for": "xAI's newest.", "tags": ["best", "pictures", "pdfs"], "price": [2, 6] },
+        { "id": "grok-4.20", "name": "Grok 4.20", "for": "Reads the longest documents.", "tags": ["pictures", "pdfs", "long-context"], "price": [1.25, 2.5] },
+        { "id": "grok-4.3", "name": "Grok 4.3", "for": "Good answers at a lower price.", "tags": ["cheap", "pictures", "pdfs", "long-context"], "price": [1.25, 2.5] }
+      ]
+    },
+    {
+      "id": "deepseek",
+      "name": "DeepSeek",
+      "free": false,
+      "note": "DeepSeek's own API has two names, each pointing at its current model. Both read text only.",
+      "models": [
+        { "id": "deepseek-chat", "name": "DeepSeek Chat", "for": "Everyday questions, at a very low price.", "tags": ["cheap", "coding", "text-only"] },
+        { "id": "deepseek-reasoner", "name": "DeepSeek Reasoner", "for": "Thinks before answering, for hard questions.", "tags": ["cheap", "reasoning", "text-only"] }
+      ]
+    },
+    {
+      "id": "perplexity",
+      "name": "Perplexity",
+      "free": false,
+      "note": "Every Perplexity model searches the web and gives its sources.",
+      "models": [
+        { "id": "sonar", "name": "Sonar", "for": "Quick answers from the web.", "tags": ["web-search", "fast", "cheap", "pictures"], "price": [1, 1] },
+        { "id": "sonar-pro", "name": "Sonar Pro", "for": "Fuller answers from more sources.", "tags": ["web-search", "best", "pictures"], "price": [3, 15] },
+        { "id": "sonar-reasoning-pro", "name": "Sonar Reasoning Pro", "for": "Thinks through a question, with the web.", "tags": ["web-search", "reasoning", "pictures"], "price": [2, 8] },
+        { "id": "sonar-deep-research", "name": "Sonar Deep Research", "for": "Long research reports.", "tags": ["web-search", "reasoning", "text-only"], "price": [2, 8] }
+      ]
+    },
+    {
+      "id": "openrouter",
+      "name": "OpenRouter",
+      "free": true,
+      "note": "One key reaches hundreds of models. Free ones end in \":free\" and need free models allowed at openrouter.ai > Settings > Privacy.",
+      "models": [
+        { "id": "openrouter/auto", "name": "Auto", "for": "OpenRouter picks a model for each question.", "tags": ["balanced"] },
+        { "id": "nvidia/nemotron-3.5-super-vl:free", "name": "Nemotron 3.5 Super VL", "for": "Free, and sees pictures and screenshots.", "tags": ["free", "pictures"] },
+        { "id": "google/gemma-4-31b-it:free", "name": "Gemma 4 31B", "for": "Google's open model, free.", "tags": ["free", "pictures"] },
+        { "id": "nvidia/nemotron-3-ultra-550b-a55b:free", "name": "Nemotron 3 Ultra", "for": "The largest free model here.", "tags": ["free", "text-only", "reasoning"] },
+        { "id": "nvidia/nemotron-3.5-lightning:free", "name": "Nemotron 3.5 Lightning", "for": "Free and quick.", "tags": ["free", "fast", "text-only"] },
+        { "id": "anthropic/claude-sonnet-5.5", "name": "Claude Sonnet 5.5", "for": "Claude, through OpenRouter.", "tags": ["balanced", "pictures", "pdfs", "coding"], "price": [2, 10] },
+        { "id": "openai/gpt-6.2-sol", "name": "GPT-6.2 Sol", "for": "ChatGPT, through OpenRouter.", "tags": ["balanced", "pictures", "pdfs"], "price": [2, 10] },
+        { "id": "deepseek/deepseek-v4.1-flash", "name": "DeepSeek V4.1 Flash", "for": "Very cheap, and sees pictures here.", "tags": ["cheap", "fast", "pictures", "long-context"], "price": [0.05, 0.2] }
+      ]
+    }
+  ]
+}

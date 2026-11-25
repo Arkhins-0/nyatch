@@ -58,6 +58,12 @@ internal sealed partial class DeckWindow
             {
                 if (!Assistant.SeesPictures(page.Engine)) return Refuse(page, $"{Assistant.Name(page.Engine)} cannot see pictures.");
                 if (size > MaxPicture) return Refuse(page, $"{name} is over 8 MB.");
+                // A big one is made smaller, as a screenshot is (services refuse pictures over a few MB).
+                if (size > 1_500_000 && ext is not (".gif" or ".webp"))
+                {
+                    using var big = System.Drawing.Image.FromFile(path);
+                    if (Math.Max(big.Width, big.Height) > MaxSide || size > 3_000_000) return new ChatFile(name, "image/jpeg", Jpeg(big));
+                }
                 var type = ext switch { ".jpg" or ".jpeg" => "image/jpeg", ".gif" => "image/gif", ".webp" => "image/webp", _ => "image/png" };
                 return new ChatFile(name, type, Convert.ToBase64String(File.ReadAllBytes(path)));
             }
@@ -103,9 +109,7 @@ internal sealed partial class DeckWindow
             var screen = System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point(at.X, at.Y)).Bounds;
             using var bitmap = new System.Drawing.Bitmap(screen.Width, screen.Height);
             using (var graphics = System.Drawing.Graphics.FromImage(bitmap)) graphics.CopyFromScreen(screen.Left, screen.Top, 0, 0, bitmap.Size);
-            using var stream = new MemoryStream();
-            bitmap.Save(stream, System.Drawing.Imaging.ImageFormat.Png);
-            page.Files.Add(new ChatFile($"Screenshot {DateTime.Now:HH.mm.ss}.png", "image/png", Convert.ToBase64String(stream.ToArray())));
+            page.Files.Add(new ChatFile($"Screenshot {DateTime.Now:HH.mm.ss}.jpg", "image/jpeg", Jpeg(bitmap)));
         }
         catch (Exception error) when (error is System.ComponentModel.Win32Exception or ExternalException or ArgumentException)
         {
@@ -113,6 +117,28 @@ internal sealed partial class DeckWindow
         }
         if (side) OpenSide();
         AiChanged(page);
+    }
+
+    // As AIChat sends a screenshot: a JPEG at most 1280 pixels on its long side, quality 88. Plenty to read text,
+    // and a few hundred KB rather than the several MB of a full-size PNG, which services turn down.
+    private const int MaxSide = 1280;
+
+    private static string Jpeg(System.Drawing.Image picture)
+    {
+        var scale = Math.Min(1.0, (double)MaxSide / Math.Max(picture.Width, picture.Height));
+        var (w, h) = (Math.Max(1, (int)Math.Round(picture.Width * scale)), Math.Max(1, (int)Math.Round(picture.Height * scale)));
+        using var small = new System.Drawing.Bitmap(w, h);
+        using (var graphics = System.Drawing.Graphics.FromImage(small))
+        {
+            graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+            graphics.DrawImage(picture, 0, 0, w, h);
+        }
+        var codec = System.Drawing.Imaging.ImageCodecInfo.GetImageEncoders().First(c => c.FormatID == System.Drawing.Imaging.ImageFormat.Jpeg.Guid);
+        using var quality = new System.Drawing.Imaging.EncoderParameters(1);
+        quality.Param[0] = new System.Drawing.Imaging.EncoderParameter(System.Drawing.Imaging.Encoder.Quality, 88L);
+        using var stream = new MemoryStream();
+        small.Save(stream, codec, quality);
+        return Convert.ToBase64String(stream.ToArray());
     }
 
     /// <summary>The files of a question as they are sent: pictures and PDFs as files, text files' words added to the text.</summary>
@@ -147,12 +173,16 @@ internal sealed partial class DeckWindow
             engine.SpeechRecognized += (_, heard) => Dispatcher.BeginInvoke(() =>
             {
                 if (_listeningFor is not { } to || heard.Result?.Text is not { Length: > 0 } words) return;
+                RestartQuiet();
                 to.Draft = to.Draft.Length == 0 ? Capital(words) : to.Draft.TrimEnd() + " " + words;
                 AiSetEditText(to.Draft);
                 AiChanged(to);
             });
+            // Still speaking (words being heard, not yet a sentence): the quiet clock starts again.
+            engine.SpeechHypothesized += (_, _) => Dispatcher.BeginInvoke(RestartQuiet);
             engine.RecognizeAsync(System.Speech.Recognition.RecognizeMode.Multiple);
             _listening = engine;
+            RestartQuiet();
             _listeningFor = page;
             page.Listening = true;
         }
@@ -163,8 +193,25 @@ internal sealed partial class DeckWindow
         AiChanged(page);
     }
 
+    // The mic stops by itself after this long without speech.
+    private static readonly TimeSpan QuietStop = TimeSpan.FromSeconds(6);
+    private System.Windows.Threading.DispatcherTimer? _quiet;
+
+    private void RestartQuiet()
+    {
+        if (_listening is null) return;
+        if (_quiet is null)
+        {
+            _quiet = new System.Windows.Threading.DispatcherTimer { Interval = QuietStop };
+            _quiet.Tick += (_, _) => StopListening();
+        }
+        _quiet.Stop();
+        _quiet.Start();
+    }
+
     private void StopListening()
     {
+        _quiet?.Stop();
         if (_listening is not { } running) return;
         _listening = null;
         try

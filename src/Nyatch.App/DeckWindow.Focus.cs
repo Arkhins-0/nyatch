@@ -36,10 +36,21 @@ internal sealed partial class DeckWindow
             elapsed.TotalSeconds % 60 / 60, _watch.Running);
 
         // The alarms: a head (when the next one rings, and the buttons), then a row each.
-        var next = _alarms.NextAfter(now) is { } soonest ? "Next alarm " + AlarmStore.Until(now, soonest.At) : _alarms.All.Count == 0 ? "No alarms yet" : "All alarms off";
+        // A snoozed alarm says so, with a countdown to when it rings again, in the head and on its row.
+        var snoozed = _snoozed is { } sz && sz.At > now ? sz : ((Alarm Alarm, DateTime At)?)null;
+        string SnoozeLeft(DateTime at)
+        {
+            var left = at - now;
+            return left.TotalHours >= 1 ? $"{(int)left.TotalHours}:{left.Minutes:00}:{left.Seconds:00}" : $"{left.Minutes}:{left.Seconds:00}";
+        }
+        var next = snoozed is { } snz ? "Snoozed " + SnoozeLeft(snz.At)
+            : _alarms.NextAfter(now) is { } soonest ? "Next alarm " + AlarmStore.Until(now, soonest.At) : _alarms.All.Count == 0 ? "No alarms yet" : "All alarms off";
         var rows = _alarms.All.Select((a, i) => string.Join('\u001F',
             AlarmTime(a),
-            Clean(a.Label), Clean(a.DaysWords), a.On ? "1" : "0", (OpenAlarm + i).ToString(CultureInfo.InvariantCulture), (SwitchAlarm + i).ToString(CultureInfo.InvariantCulture)));
+            Clean(a.Label),
+            snoozed is { } so && so.Alarm.Id == a.Id ? "Snoozed " + SnoozeLeft(so.At) : Clean(a.DaysWords),
+            // A snoozed alarm's switch is on (a one-off is already off once it rang): switching it off ends the snooze.
+            a.On || snoozed is { } sn && sn.Alarm.Id == a.Id ? "1" : "0", (OpenAlarm + i).ToString(CultureInfo.InvariantCulture), (SwitchAlarm + i).ToString(CultureInfo.InvariantCulture)));
         var alarms = string.Join('\u001D', new[] { string.Join('\u001F', Clean(next), AddAlarm.ToString(CultureInfo.InvariantCulture), FocusSettings.ToString(CultureInfo.InvariantCulture)) }.Concat(rows));
 
         return string.Join('\u001E', timer, watch, alarms, ((int)_timer.Length.TotalMinutes).ToString(CultureInfo.InvariantCulture));
@@ -86,7 +97,10 @@ internal sealed partial class DeckWindow
                 return;
             case >= SwitchAlarm and < 500 when action - SwitchAlarm < _alarms.All.Count:
                 var alarm = _alarms.All[action - SwitchAlarm];
-                _alarms.Put(alarm with { On = !alarm.On });
+                // A snoozed alarm's switch shows on: switching it off ends the snooze, and leaves the alarm itself as it
+                // was (a one-off is off already; a repeating one still rings on its next day).
+                if (_snoozed is { } snoozedNow && snoozedNow.Alarm.Id == alarm.Id && snoozedNow.At > now) _snoozed = null;
+                else _alarms.Put(alarm with { On = !alarm.On });
                 break;
             case > 1000 and <= 1999:
                 // Typed in the custom minutes box: that long, started at once.
@@ -115,6 +129,7 @@ internal sealed partial class DeckWindow
         editor.Deleted += id =>
         {
             _alarms.Remove(id);
+            if (_snoozed is { } snoozed && snoozed.Alarm.Id == id) _snoozed = null;
             SendNativeData();
         };
         editor.Show();
@@ -182,7 +197,7 @@ internal sealed partial class DeckWindow
         if (_timer.TakeFinished(now))
         {
             var length = _timer.Length;
-            Ring("Timer finished", "Enter again · Space stop", "Again", "Your timer has run out.", _settings.Get("Deck.TimerSound"), () =>
+            Ring("Timer finished", "Space again · Enter stop", "Again", "Your timer has run out.", _settings.Get("Deck.TimerSound"), () =>
             {
                 _timer.Reset(length);
                 _timer.Start(DateTime.Now);
@@ -204,9 +219,9 @@ internal sealed partial class DeckWindow
             if (alarm.Days == AlarmDays.None && _alarms.Find(alarm.Id) is { On: true } kept) _alarms.Put(kept with { On = false });
             var time = AlarmTime(alarm);
             var title = alarm.Label.Length > 0 ? $"{alarm.Label} · {time}" : $"Alarm · {time}";
-            // Enter snoozes it (for as long as the settings say), Space stops it.
+            // Space snoozes it (for as long as the settings say), Enter stops it.
             var snooze = int.TryParse(_settings.Get("Deck.SnoozeMinutes"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var m) ? Math.Clamp(m, 1, 60) : 10;
-            Ring(title, $"Enter snooze {snooze} min · Space stop", "Snooze", "Your alarm is ringing.", alarm.Sound.Length > 0 ? alarm.Sound : _settings.Get("Deck.AlarmSound"),
+            Ring(title, $"Space snooze {snooze} min · Enter stop", "Snooze", "Your alarm is ringing.", alarm.Sound.Length > 0 ? alarm.Sound : _settings.Get("Deck.AlarmSound"),
                 () => _snoozed = (alarm, DateTime.Now.AddMinutes(snooze)));
         }
         if (due.Count > 0) SendNativeData();

@@ -9641,7 +9641,7 @@ bool IsMicrophoneCapturing(std::wstring* outAppName) {
                     if (control2->IsSystemSoundsSession() == S_OK) continue;
                     DWORD pid = 0;
                     control2->GetProcessId(&pid);
-                    if (pid == GetCurrentProcessId()) continue;
+                    // (Nyatch itself counts too: its LLM mic lights the dot like any other app.)
                     active = true;
                     if (outAppName && outAppName->empty() && pid != 0) {
                         if (HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid)) {
@@ -14202,6 +14202,9 @@ class Renderer {
         const bool hasFiles = Str(*a, 15) == L"1";
         const bool micShown = micAction >= 0 && !sending && !hasText && !hasFiles;
         const D2D1_RECT_F send = D2D1::RectF(box.right - 31.0f * u, box.bottom - 31.0f * u, box.right - 5.0f * u, box.bottom - 5.0f * u);
+        // While the mic listens, the button is the mic, filled, whatever is typed: a click stops it (the send arrow
+        // comes after). Hiding it behind the send arrow left it listening with no way to see or stop it.
+        const bool listenShown = listening && !sending && micAction >= 0;
         if (micShown && !listening) {
             DeckButton(send, f, ink, false, kDeckApp, micAction);
             DeckText(L"\uE720", deckGlyphFormat_.Get(), send, ink, DWRITE_TEXT_ALIGNMENT_CENTER);
@@ -14209,10 +14212,9 @@ class Renderer {
             D2D1_COLOR_F sendFill = material_.accent;
             if (Inside(send, f.hover)) sendFill.a = 0.85f;
             DeckFill(send, sendFill, 7.0f * u);
-            // Listening: the mic, filled, until it is clicked again (or something is sent).
-            const wchar_t* glyph = sending ? L"\uE71A" : (listening && !hasText && !hasFiles) ? L"\uE720" : L"\uE724";
+            const wchar_t* glyph = sending ? L"\uE71A" : listenShown ? L"\uE720" : L"\uE724";
             DeckText(glyph, deckGlyphFormat_.Get(), send, D2D1::ColorF(1, 1, 1, 1), DWRITE_TEXT_ALIGNMENT_CENTER);
-            deckHits_.push_back({send, kDeckApp, (listening && !hasText && !hasFiles && !sending) ? micAction : Num(*a, 8)});
+            deckHits_.push_back({send, kDeckApp, listenShown ? micAction : Num(*a, 8)});
         }
         DrawField(f, 40, D2D1::RectF((attachAction >= 0 ? plus.right + 4.0f * u : box.left + 12.0f * u), box.top + 9.0f * u, send.left - 8.0f * u, box.top + 9.0f * u + textH), Str(*a, 9),
                   (listening ? std::wstring(L"Listening\u2026 speak, then click the mic") : L"Message " + name).c_str(), ink, muted);
@@ -14238,7 +14240,7 @@ class Renderer {
                 DeckText(label, deckSmallFormat_.Get(), D2D1::RectF(chip.left + 22.0f * u, chip.top, chip.right - 22.0f * u, chip.bottom), ink);
                 const D2D1_RECT_F remove = D2D1::RectF(chip.right - 22.0f * u, chip.top + 2.0f * u, chip.right - 2.0f * u, chip.bottom - 2.0f * u);
                 DeckButton(remove, f, ink, false, kDeckApp, Num(r, 3));
-                DeckText(L"\uE711", deckSmallFormat_.Get(), remove, muted, DWRITE_TEXT_ALIGNMENT_CENTER);
+                DeckText(L"\uE711", deckGlyphFormat_.Get(), remove, muted, DWRITE_TEXT_ALIGNMENT_CENTER);
                 x = chip.right + 6.0f * u;
             }
         }
@@ -17398,7 +17400,10 @@ class Renderer {
         // the edge glow this design drops. The contour stroke alone defines the
         // silhouette now.
 
-        DrawPillContent(state, settings, activity, content, now);
+        // Nyatch: a notice on its own has her face at its right too, as under the open notch's top row.
+        D2D1_RECT_F inner = content;
+        if (IsNoticeKind(activity.kind)) inner.right -= DrawNoticeHer(settings, activity.kind, content, now);
+        DrawPillContent(state, settings, activity, inner, now);
         if (sideTab != 0.0f) DrawPrivacyTabIcon(content, rect, sideTab, now);
     }
 
@@ -17532,31 +17537,50 @@ class Renderer {
                         D2D1::RectF(cx - rowW * 0.5f, rect.top, cx + rowW * 0.5f, rect.top + rowH), now);
         noPrivacyDots_ = true;   // Nyatch: the camera and microphone icons belong to the top row only
         // Nyatch: her face at the right end of the notice, reacting to it; the notice keeps to its left.
-        float herW = 0.0f;
-        if (noteH >= 30.0f * settings.sizeScale && noteW >= 160.0f * settings.sizeScale) {
-            const float side = std::min(noteH - 10.0f * settings.sizeScale, 44.0f * settings.sizeScale);
-            const float right = cx + noteW * 0.5f - 14.0f * settings.sizeScale;
-            const float mid = rect.top + rowH + noteH * 0.5f;
-            const D2D1_RECT_F box = D2D1::RectF(right - side, mid - side * 0.5f, right, mid + side * 0.5f);
-            bool shown = false;
-            switch (notice.kind) {
-                case IslandKind::Notification: shown = DrawCharacter(settings, L"notice", {L"notice-message", L"happy", L"idle"}, box, now, 0, 0.0); break;
-                case IslandKind::CapsLock: shown = DrawCharacter(settings, L"notice", {L"notice-capslock", L"surprised", L"shocked", L"idle"}, box, now, 0, 0.0); break;
-                case IslandKind::BatteryLow: shown = DrawCharacter(settings, L"notice", {L"notice-battery", L"sleeping", L"idle"}, box, now, 0, 0.0); break;
-                case IslandKind::Clipboard: shown = DrawCharacter(settings, L"notice", {L"notice-copied", L"done", L"happy", L"idle"}, box, now, 0, 0.0); break;
-                case IslandKind::Device:
-                case IslandKind::Bluetooth: shown = DrawCharacter(settings, L"notice", {L"notice-device", L"happy", L"idle"}, box, now, 0, 0.0); break;
-                case IslandKind::DoNotDisturb: shown = DrawCharacter(settings, L"notice", {L"notice-dnd", L"sleeping", L"idle"}, box, now, 0, 0.0); break;
-                case IslandKind::Volume: shown = DrawCharacter(settings, L"notice", {L"notice-volume", L"listening", L"idle"}, box, now, 0, 0.0); break;
-                case IslandKind::Brightness: shown = DrawCharacter(settings, L"notice", {L"notice-brightness", L"cool", L"idle"}, box, now, 0, 0.0); break;
-                default: shown = DrawCharacter(settings, L"notice", {L"notice", L"idle"}, box, now, 0, 0.0); break;
-            }
-            if (shown) herW = side + 8.0f * settings.sizeScale;
-        }
+        const float herW = DrawNoticeHer(settings, notice.kind,
+                                          D2D1::RectF(cx - noteW * 0.5f, rect.top + rowH, cx + noteW * 0.5f, rect.top + rowH + noteH), now);
         DrawPillContent(state, settings, notice,
                         D2D1::RectF(cx - noteW * 0.5f, rect.top + rowH, cx + noteW * 0.5f - herW, rect.top + rowH + noteH), now);
         noPrivacyDots_ = false;
         target_->PopAxisAlignedClip();
+    }
+
+    // Nyatch: is this kind a notice (volume, brightness, Caps Lock, a message...): the kinds her face reacts to.
+    static bool IsNoticeKind(IslandKind kind) {
+        switch (kind) {
+            case IslandKind::Notification: case IslandKind::CapsLock: case IslandKind::BatteryLow: case IslandKind::Clipboard:
+            case IslandKind::Device: case IslandKind::Bluetooth: case IslandKind::DoNotDisturb: case IslandKind::Volume:
+            case IslandKind::Brightness:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    // Nyatch: her face at the right end of a notice's area, reacting to it. Returns how much of the area's width it
+    // took (0 when there is no picture, or no room), so the notice keeps to its left. The same whether the notice is
+    // shown under the open notch's top row or on its own over the closed notch.
+    float DrawNoticeHer(const Settings& settings, IslandKind kind, D2D1_RECT_F area, double now) {
+        const float noteW = area.right - area.left, noteH = area.bottom - area.top;
+        if (noteH < 30.0f * settings.sizeScale || noteW < 160.0f * settings.sizeScale) return 0.0f;
+        const float side = std::min(noteH - 10.0f * settings.sizeScale, 44.0f * settings.sizeScale);
+        const float right = area.right - 14.0f * settings.sizeScale;
+        const float mid = (area.top + area.bottom) * 0.5f;
+        const D2D1_RECT_F box = D2D1::RectF(right - side, mid - side * 0.5f, right, mid + side * 0.5f);
+        bool shown = false;
+        switch (kind) {
+            case IslandKind::Notification: shown = DrawCharacter(settings, L"notice", {L"notice-message", L"happy", L"idle"}, box, now, 0, 0.0); break;
+            case IslandKind::CapsLock: shown = DrawCharacter(settings, L"notice", {L"notice-capslock", L"surprised", L"shocked", L"idle"}, box, now, 0, 0.0); break;
+            case IslandKind::BatteryLow: shown = DrawCharacter(settings, L"notice", {L"notice-battery", L"sleeping", L"idle"}, box, now, 0, 0.0); break;
+            case IslandKind::Clipboard: shown = DrawCharacter(settings, L"notice", {L"notice-copied", L"done", L"happy", L"idle"}, box, now, 0, 0.0); break;
+            case IslandKind::Device:
+            case IslandKind::Bluetooth: shown = DrawCharacter(settings, L"notice", {L"notice-device", L"happy", L"idle"}, box, now, 0, 0.0); break;
+            case IslandKind::DoNotDisturb: shown = DrawCharacter(settings, L"notice", {L"notice-dnd", L"sleeping", L"idle"}, box, now, 0, 0.0); break;
+            case IslandKind::Volume: shown = DrawCharacter(settings, L"notice", {L"notice-volume", L"listening", L"idle"}, box, now, 0, 0.0); break;
+            case IslandKind::Brightness: shown = DrawCharacter(settings, L"notice", {L"notice-brightness", L"cool", L"idle"}, box, now, 0, 0.0); break;
+            default: shown = DrawCharacter(settings, L"notice", {L"notice", L"idle"}, box, now, 0, 0.0); break;
+        }
+        return shown ? side + 8.0f * settings.sizeScale : 0.0f;
     }
 
     // What goes inside an island of one kind, drawn into `rect` (no outline).
@@ -25299,7 +25323,7 @@ class Renderer {
         // Ringing: the app's title, and under it the keys' words (sent as the title, a line break, then the keys).
         const size_t ringBreak = state.timer.ringTitle.find(L'\n');
         const std::wstring ringLabel = state.timer.ringTitle.substr(0, ringBreak);
-        std::wstring ringKeys = ringBreak == std::wstring::npos ? std::wstring(L"Space stop") : state.timer.ringTitle.substr(ringBreak + 1);
+        std::wstring ringKeys = ringBreak == std::wstring::npos ? std::wstring(L"Enter stop") : state.timer.ringTitle.substr(ringBreak + 1);
         // Then the again button's word ("Again", "Snooze"), after a second line break.
         std::wstring ringAgain = L"Again";
         if (const size_t second = ringKeys.find(L'\n'); second != std::wstring::npos) {
@@ -26879,6 +26903,18 @@ Activity ActivityForKind(IslandKind kind, const Settings& settings, const Shared
                 activity.width = settings.weather ? 170.0f : 96.0f;
                 activity.height = IdleStripLayout::kHeight;
             }
+            break;
+    }
+
+    // Nyatch: a notice with her face at its right grows by the face's width, so its words keep their room.
+    // (The same size as Renderer::DrawNoticeHer: a square of the height less 10, at most 44, and 8 after it.)
+    switch (kind) {
+        case IslandKind::Notification: case IslandKind::CapsLock: case IslandKind::BatteryLow: case IslandKind::Clipboard:
+        case IslandKind::Device: case IslandKind::Bluetooth: case IslandKind::DoNotDisturb: case IslandKind::Volume:
+        case IslandKind::Brightness:
+            if (settings.characters) activity.width += std::min(activity.height - 10.0f, 44.0f) + 8.0f;
+            break;
+        default:
             break;
     }
 

@@ -23,7 +23,7 @@ internal sealed partial class SettingsWindow
     /// <summary>Each service in a card of its own: its key (connect, replace, disconnect) and its model. Then the conversations.</summary>
     private void ShowChats()
     {
-        Head(_page);
+        Head(_page, ModelsButton());
         // Connected services first, then the rest, each in its own card with its logo.
         var services = Secrets.Known.OrderByDescending(s => Secrets.Has(s.Id)).ToList();
         var connectedCount = services.Count(s => Secrets.Has(s.Id));

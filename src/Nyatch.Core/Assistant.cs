@@ -128,12 +128,12 @@ public static class Assistant
         AssistantEngine.Claude => "claude-opus-5-5",
         AssistantEngine.ChatGpt => "gpt-6-astra",
         AssistantEngine.DeepSeek => "deepseek-chat",
-        AssistantEngine.Mistral => "ministral-8b-2512",
+        AssistantEngine.Mistral => "mistral-medium-latest",
         AssistantEngine.Grok => "grok-4",
-        AssistantEngine.Groq => "llama-3.3-70b-versatile",
+        AssistantEngine.Groq => "qwen/qwen3.8-27b",
         AssistantEngine.Perplexity => "sonar",
-        AssistantEngine.OpenRouter => "openrouter/auto",
-        _ => "gemini-flash-lite-latest",
+        AssistantEngine.OpenRouter => "nvidia/nemotron-3.5-super-vl:free",
+        _ => "gemini-flash-latest",
     };
 
     /// <summary>
@@ -316,12 +316,22 @@ public static class Assistant
     public static string Explain(AssistantEngine engine, int status, string body, string model)
     {
         var name = ServiceName(engine);
+        var detail = ErrorMessage(body);
+        // OpenRouter's free models run only where the account's privacy settings allow them, and it says so with a 404.
+        if (status == 404 && detail is not null && detail.Contains("data policy", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"{name} will not run “{model}” with this account's privacy settings. Allow free models at openrouter.ai › Settings › Privacy, or choose another model in Settings › LLM › Services.";
+        }
         return status switch
         {
-            401 or 403 => $"{name} rejected the key. Check it on the Keys page.",
-            404 => $"{name} does not know the model “{model}”. Change it on the Assistant page.",
+            401 or 403 => $"{name} rejected the key. Check it in Settings › LLM › Services.",
+            // The service's own words too, as a 404 is not always an unknown model.
+            404 => $"{name} could not use the model “{model}”{(detail is null ? "" : $" ({detail})")}. Change it in Settings › LLM › Services.",
+            // The key works, but the account has no plan (or credit) for the API.
+            402 when engine == AssistantEngine.Mistral => $"{name}: {detail ?? "the account has no API plan"}. Choose the free Experiment plan at console.mistral.ai › Billing (it may ask to confirm a phone number); the same key then works.",
+            402 => $"{name}: {detail ?? "the account has no credit for the API"}. Add a plan or credit on its website; the same key then works.",
             429 => $"{name} is limiting requests, or the account is out of credit.",
-            _ => ErrorMessage(body) is { } detail ? $"{name}: {detail}" : $"{name} answered with an error ({status}).",
+            _ => detail is not null ? $"{name}: {detail}" : $"{name} answered with an error ({status}).",
         };
     }
 
@@ -333,7 +343,7 @@ public static class Assistant
         _ => Name(engine),
     };
 
-    private static string? ErrorMessage(string body)
+    public static string? ErrorMessage(string body)
     {
         try
         {

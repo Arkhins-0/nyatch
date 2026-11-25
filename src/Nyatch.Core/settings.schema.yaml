@@ -505,25 +505,25 @@
   - ChatGptModel: gpt-6-astra
     $name: ChatGPT model
     $description: ''
-  - GeminiModel: gemini-flash-lite-latest
+  - GeminiModel: gemini-flash-latest
     $name: Gemini model
     $description: ''
   - DeepSeekModel: deepseek-chat
     $name: DeepSeek model
     $description: ''
-  - MistralModel: ministral-8b-2512
+  - MistralModel: mistral-medium-latest
     $name: Mistral model
     $description: ''
   - GrokModel: grok-4
     $name: Grok model
     $description: ''
-  - GroqModel: llama-3.3-70b-versatile
+  - GroqModel: qwen/qwen3.8-27b
     $name: Groq model
     $description: ''
   - PerplexityModel: sonar
     $name: Perplexity model
     $description: ''
-  - OpenRouterModel: openrouter/auto
+  - OpenRouterModel: nvidia/nemotron-3.5-super-vl:free
     $name: OpenRouter model
     $description: ''
   - KeepHistory: true
@@ -602,7 +602,7 @@
     $description: ''
   - FocusSound: true
     $name: Sound
-    $description: 'Rings until Space stops it. Enter runs the timer again, or snoozes the alarm.'
+    $description: 'Rings until Enter stops it. Space runs the timer again, or snoozes the alarm.'
   - TimerSound: ""
     $name: Timer sound
     $description: 'A sound file. Empty: the Windows alarm.'
@@ -614,7 +614,7 @@
     $description: ''
   - SnoozeMinutes: 10
     $name: Snooze
-    $description: 'How long an alarm waits when Enter snoozes it.'
+    $description: 'How long an alarm waits when Space snoozes it.'
   - RingLowersOthers: true
     $name: Lower other sounds while it rings
     $description: 'Music and videos go quieter until it is stopped.'

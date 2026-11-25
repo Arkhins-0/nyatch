@@ -506,6 +506,8 @@ internal sealed partial class SettingsWindow : Window
         _anchors.Clear();
         _refreshPicture = null;
         var query = _search.Text.Trim();
+        // The models list is a view of LLM services: another page closes it.
+        if (_page.Id != "chats") _modelsView = false;
         if (query.Length > 0) ShowSearch(query);
         else
         {
@@ -580,6 +582,9 @@ internal sealed partial class SettingsWindow : Window
                     Picture(() => PageStage("terminal", "online"));
                     Sections(_page);
                     break;
+                case "chats" when _modelsView:
+                    ShowModels();
+                    break;
                 case "chats":
                     ShowChats();
                     break;
@@ -637,7 +642,7 @@ internal sealed partial class SettingsWindow : Window
                 Changed(page.Settings.Contains("General.SettingsTheme"));
                 ShowPage();
             };
-            all.Insert(0, reset);
+            all.Add(reset);  // last: a page's own buttons come before it
         }
         PageStrip(page.Title, "", [.. all]);
     }

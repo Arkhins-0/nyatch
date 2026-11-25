@@ -124,6 +124,14 @@ internal sealed partial class SettingsWindow
             {
                 OpenPage(page.Id);
                 Shot(page.Id);
+                if (page.Id == "chats")
+                {
+                    // Its Models view too.
+                    _modelsView = true;
+                    ShowPage();
+                    Shot("chats-models");
+                    _modelsView = false;
+                }
             }
         }
         if (only.Count == 0 || only.Contains("search"))

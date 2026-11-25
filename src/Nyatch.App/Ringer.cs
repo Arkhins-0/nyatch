@@ -9,7 +9,7 @@ namespace Nyatch.App;
 
 /// <summary>
 /// A timer or an alarm ringing: its sound plays over and over, and the top notch says what rings, until it
-/// is stopped (Space), started again (Enter: the timer again, the alarm in five minutes) or two minutes
+/// is stopped (Enter), started again (Space: the timer again, the alarm snoozed) or two minutes
 /// pass. Enter and Space are taken only while it rings. Lives on the app's thread.
 /// </summary>
 internal sealed class Ringer
@@ -58,8 +58,8 @@ internal sealed class Ringer
     }
 
     /// <summary>
-    /// Ring: "Timer finished", the keys' words under it ("Enter again · Space stop"), a sound (a file; empty: the
-    /// Windows alarm; null: silent) at a volume (0 to 1), whether the other apps go quieter meanwhile, and what Enter does.
+    /// Ring: "Timer finished", the keys' words under it ("Space again · Enter stop"), a sound (a file; empty: the
+    /// Windows alarm; null: silent) at a volume (0 to 1), whether the other apps go quieter meanwhile, and what Space does.
     /// </summary>
     public void Start(string title, string keys, string againWord, string? sound, double volume, bool lowerOthers, Action? again)
     {
@@ -68,8 +68,8 @@ internal sealed class Ringer
         _again = again;
         // The top notch shows the title, the keys under it, and two buttons: againWord ("Again", "Snooze") and Stop.
         Island.SetRinging(title + "\n" + keys + "\n" + againWord);
-        RegisterHotKey(_window, AgainId, NoRepeat, Enter);
-        RegisterHotKey(_window, StopId, NoRepeat, Space);
+        RegisterHotKey(_window, AgainId, NoRepeat, Space);
+        RegisterHotKey(_window, StopId, NoRepeat, Enter);
         if (sound is not null && SoundOrDefault(sound) is { Length: > 0 } file)
         {
             if (lowerOthers) OtherSounds.Lower(0.2f);
@@ -87,7 +87,7 @@ internal sealed class Ringer
         _limit.Start();
     }
 
-    /// <summary>The top notch's buttons, as Enter (again: true) and Space do.</summary>
+    /// <summary>The top notch's buttons, as Space (again: true) and Enter do.</summary>
     public void Press(bool again)
     {
         if (!Ringing) return;

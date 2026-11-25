@@ -25,7 +25,10 @@ public sealed class AssistantClient
     public async Task<string> Ask(AssistantEngine engine, string model, string key, IReadOnlyList<ChatTurn> turns, Action<string> onText, CancellationToken cancel, string own = "", string? prompt = null)
     {
         Assistant.Check(turns);
+        key = Secrets.Clean(key);
         model = Assistant.CleanModel(model, engine);
+        // A question with pictures goes to the chat's own model; if it cannot see them, the chat says so.
+        var pictures = turns.Any(t => t.Files?.Any(f => f.IsPicture && f.Data.Length > 0) == true);
         try
         {
             switch (engine)
@@ -36,23 +39,23 @@ public sealed class AssistantClient
                     {
                         r.Headers.Add("x-api-key", key);
                         r.Headers.Add("anthropic-version", "2023-06-01");
-                    }), Assistant.ClaudeDelta, onText, null, cancel);
+                    }), Assistant.ClaudeDelta, onText, null, cancel, pictures);
                     return "";
                 case AssistantEngine.Claude:
                     await AskClaude(model, key, turns, onText, cancel, own, prompt);
                     return "";
                 case AssistantEngine.ChatGpt:
-                    await AskOverHttp(engine, model, Request(Assistant.OpenAiUrl, Assistant.OpenAiBody(model, turns, own, prompt), r => r.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key)), Assistant.OpenAiDelta, onText, null, cancel);
+                    await AskOverHttp(engine, model, Request(Assistant.OpenAiUrl, Assistant.OpenAiBody(model, turns, own, prompt), r => r.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key)), Assistant.OpenAiDelta, onText, null, cancel, pictures);
                     return "";
                 case var _ when Assistant.CompatibleUrl(engine) is { } url:
                     // DeepSeek, Mistral, Grok, Groq, Perplexity, OpenRouter: OpenAI's request, at their own address.
-                    await AskOverHttp(engine, model, Request(url, Assistant.OpenAiBody(model, turns, own, prompt), r => r.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key)), Assistant.OpenAiDelta, onText, null, cancel);
+                    await AskOverHttp(engine, model, Request(url, Assistant.OpenAiBody(model, turns, own, prompt), r => r.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key)), Assistant.OpenAiDelta, onText, null, cancel, pictures);
                     return "";
                 case AssistantEngine.Gemini:
                 {
                     var sources = new List<string>();
                     var request = Request(Assistant.GeminiUrl(model), Assistant.GeminiBody(turns, search: false, own, prompt), r => r.Headers.Add("x-goog-api-key", key));
-                    await AskOverHttp(engine, model, request, Assistant.GeminiDelta, onText, sources, cancel);
+                    await AskOverHttp(engine, model, request, Assistant.GeminiDelta, onText, sources, cancel, pictures);
                     return sources.Count == 0 ? "" : "\n\nSources: " + string.Join(" · ", sources);
                 }
                 default:
@@ -116,13 +119,23 @@ public sealed class AssistantClient
     }
 
     /// <summary>Reads a server-sent-event stream, one "data:" line at a time.</summary>
-    private static async Task AskOverHttp(AssistantEngine engine, string model, HttpRequestMessage request, Func<JsonElement, string?> delta, Action<string> onText, List<string>? sources, CancellationToken cancel)
+    private static async Task AskOverHttp(AssistantEngine engine, string model, HttpRequestMessage request, Func<JsonElement, string?> delta, Action<string> onText, List<string>? sources, CancellationToken cancel, bool pictures = false)
     {
         using var _ = request;
         using var response = await Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancel);
         if (!response.IsSuccessStatusCode)
         {
             var reply = await response.Content.ReadAsStringAsync(cancel);
+            // Said to be unable to see pictures only when the service says so; otherwise its own words.
+            if (pictures && (int)response.StatusCode is 400 or 415 or 422 && Assistant.ErrorMessage(reply) is { } said &&
+                (((said.Contains("image", StringComparison.OrdinalIgnoreCase) || said.Contains("vision", StringComparison.OrdinalIgnoreCase) ||
+                   said.Contains("multimodal", StringComparison.OrdinalIgnoreCase)) &&
+                  (said.Contains("support", StringComparison.OrdinalIgnoreCase) || said.Contains("not ", StringComparison.OrdinalIgnoreCase))) ||
+                 // A text-only model on an OpenAI-style service: the message may only be text ("content must be a string").
+                 said.Contains("must be a string", StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new AssistantException($"{model} cannot see pictures ({said}). Ask without the picture, or choose a model that can in Settings › LLM › Services.");
+            }
             throw new AssistantException(Assistant.Explain(engine, (int)response.StatusCode, reply, model));
         }
         using var reader = new StreamReader(await response.Content.ReadAsStreamAsync(cancel), Encoding.UTF8);
