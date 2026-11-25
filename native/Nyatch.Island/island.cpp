@@ -1184,6 +1184,11 @@ struct LookupUiState {
     uint64_t fileHitsGeneration = 0;
     bool filesEnabled = false;
     bool webEnabled = false;
+    // Nyatch: a path pasted in the box ("C:\x\y.txt", with or without quotes): checked once per change of the
+    // text. pathKind 0 = not a path that is there, 1 = a folder, 2 = a file.
+    std::wstring pathQuery;
+    std::wstring path;
+    int pathKind = 0;
     // An assistant has answered in this panel session: the next question is a follow-up.
     bool assistantThread = false;
 };
@@ -10524,6 +10529,7 @@ struct LookupRow {
     std::wstring detail;
     std::wstring path;    // File / Folder / App rows
     bool assistant = false;  // a Recent row that was asked of an assistant
+    bool select = false;     // a pasted file's path: its folder opens with the file selected
 };
 
 // ── Assistant (answers inside the island) ────────────────────────────────────
@@ -10853,6 +10859,19 @@ std::vector<LookupRow> BuildLookupRows(const std::vector<LookupRecent>& recents,
         return rows;
     }
 
+    // A pasted path comes first, so Enter opens it: a folder, or a file's folder with the file selected.
+    if (ui.pathKind != 0 && ui.pathQuery == typed) {
+        if (ui.pathKind == 2) {
+            const size_t slash = ui.path.find_last_of(L"\\/");
+            rows.push_back({LookupRowKind::File, typed,
+                            slash == std::wstring::npos ? ui.path : ui.path.substr(slash + 1),
+                            Loc(L"Show in folder"), ui.path});
+            rows.back().select = true;
+        } else {
+            rows.push_back({LookupRowKind::Folder, typed, ui.path, Loc(L"Open folder"), ui.path});
+        }
+    }
+
     // A sum gets its answer first, so Enter copies it.
     double answer = 0.0;
     if (EvaluateMath(typed, &answer)) {
@@ -10907,11 +10926,60 @@ std::vector<LookupRow> BuildLookupRows(const std::vector<LookupRecent>& recents,
     return rows;
 }
 
+// Nyatch: the typed text as a path on this PC, or empty: quotes around it dropped, %NAMES% filled in, / as \.
+// Only drive paths ("C:\...") and network paths ("\\server\share...").
+std::wstring PastedPath(std::wstring text) {
+    auto trim = [&]() {
+        const size_t a = text.find_first_not_of(L" \t\r\n");
+        const size_t b = text.find_last_not_of(L" \t\r\n");
+        text = a == std::wstring::npos ? std::wstring() : text.substr(a, b - a + 1);
+    };
+    trim();
+    while (!text.empty() && (text.front() == L'"' || text.front() == L'\'')) text.erase(0, 1);
+    while (!text.empty() && (text.back() == L'"' || text.back() == L'\'')) text.pop_back();
+    trim();
+    if (text.empty() || text.find(L'"') != std::wstring::npos) return std::wstring();
+    if (text.find(L'%') != std::wstring::npos) {
+        wchar_t expanded[MAX_PATH * 2] = {};
+        const DWORD n = ExpandEnvironmentStringsW(text.c_str(), expanded, ARRAYSIZE(expanded));
+        if (n > 0 && n <= ARRAYSIZE(expanded)) text = expanded;
+    }
+    std::replace(text.begin(), text.end(), L'/', L'\\');
+    const bool drive = text.size() >= 3 && iswalpha(text[0]) && text[1] == L':' && text[2] == L'\\';
+    const bool drivePlain = text.size() == 2 && iswalpha(text[0]) && text[1] == L':';
+    const bool network = text.size() > 2 && text[0] == L'\\' && text[1] == L'\\';
+    if (drivePlain) return text + L"\\";
+    if (!drive && !network) return std::wstring();
+    // "C:\x\" is the folder C:\x (but "C:\" stays as it is).
+    while (text.size() > 3 && text.back() == L'\\') text.pop_back();
+    return text;
+}
+
+void RefreshLookupPath() {
+    LookupUiState& ui = g_lookupUi;
+    const std::wstring typed = ui.open ? LookupTypedQuery(ui) : std::wstring();
+    if (typed == ui.pathQuery) return;
+    ui.pathQuery = typed;
+    ui.path = PastedPath(typed);
+    ui.pathKind = 0;
+    if (!ui.path.empty()) {
+        // A network path is not asked about (an absent server can take seconds to answer): it is opened as typed.
+        if (ui.path.rfind(L"\\\\", 0) == 0) {
+            ui.pathKind = 1;
+        } else {
+            const DWORD attributes = GetFileAttributesW(ui.path.c_str());
+            if (attributes != INVALID_FILE_ATTRIBUTES) ui.pathKind = (attributes & FILE_ATTRIBUTE_DIRECTORY) ? 1 : 2;
+        }
+    }
+    g_layoutDirty = true;
+}
+
 // Re-runs the local file match when the typed text or the index changed. Render
 // thread, once per frame before the panel is measured, so measuring, drawing and
 // hit testing all see the same rows.
 void RefreshLookupFileResults() {
     LookupUiState& ui = g_lookupUi;
+    RefreshLookupPath();
     if (!ui.open || !ui.filesEnabled) {
         ui.fileHits.clear();
         return;
@@ -11938,7 +12006,7 @@ bool ActivateLookupRow(HWND hwnd, const LookupRow& row, bool reveal) {
         case LookupRowKind::File:
         case LookupRowKind::Folder:
         case LookupRowKind::App:
-            if (reveal && row.kind != LookupRowKind::App) {
+            if ((reveal || row.select) && row.kind != LookupRowKind::App) {
                 const std::wstring args = L"/select,\"" + row.path + L"\"";
                 ShellExecuteW(nullptr, L"open", L"explorer.exe", args.c_str(), nullptr, SW_SHOWNORMAL);
             } else {
