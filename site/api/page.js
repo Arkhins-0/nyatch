@@ -2,12 +2,12 @@
 // by Vercel's cache for a minute), so a new release shows without rebuilding the site.
 
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { downloadMeta, installerOf, releases, releasesHtml } from '../lib/releases.js';
 
+// Found next to this file (on Vercel the site sits in a folder of its own, not where the function starts).
 const templates = {
-  index: readFileSync(join(process.cwd(), 'public', 'index.html'), 'utf8'),
-  releases: readFileSync(join(process.cwd(), 'public', 'releases.html'), 'utf8'),
+  index: readFileSync(new URL('../public/index.html', import.meta.url), 'utf8'),
+  releases: readFileSync(new URL('../public/releases.html', import.meta.url), 'utf8'),
 };
 
 export async function GET(request) {
