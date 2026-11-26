@@ -29380,6 +29380,12 @@ DWORD WINAPI RenderThreadProc(void*) {
                     const bool stillFullscreen = g_settings.autoHideFullscreen && !ShownOverFullscreen() &&
                         !(g_settings.gameOverlay || g_gameOverlayPinned.load()) && IsForegroundFullscreen(hwnd);
                     g_isFullscreen.store(stillFullscreen, std::memory_order_relaxed);
+                    // Nyatch: the second notch and the LLM tab go by this; it is told here too, so they come back
+                    // with the top notch and not half a second after it.
+                    // (Whether a full-screen app is in front at all, a notice shown over it or not.)
+                    g_fullscreenInFront.store(g_settings.autoHideFullscreen && !(g_settings.gameOverlay || g_gameOverlayPinned.load()) &&
+                                                  IsForegroundFullscreen(hwnd),
+                                              std::memory_order_relaxed);
                     if (!stillFullscreen) {
                         g_fullscreenOverrideVisible = false;
                         g_autoHiddenParked = false;

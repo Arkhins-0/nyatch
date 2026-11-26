@@ -598,7 +598,11 @@ DWORD WINAPI ThreadProc(LPVOID) {
             }
             open = false;
             started = false;
-            MsgWaitForMultipleObjects(1, &g_stopEvent, FALSE, 250, QS_ALLINPUT);
+            // Painted afresh before it shows again: else it waited for something on it to change (the LLM tab came
+            // back late), or showed the frame it had before it was hidden for a moment (the second notch flashed).
+            paintedShown = -1.0f;
+            // Looked at often while a full-screen app has it hidden, so it is back as soon as the top notch is.
+            MsgWaitForMultipleObjects(1, &g_stopEvent, FALSE, fullscreenNow ? 60 : 250, QS_ALLINPUT);
             continue;
         }
 
