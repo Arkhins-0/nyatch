@@ -48,9 +48,10 @@ public static partial class Updates
                 .Select(a => (Name: Text(a, "name"), Url: Text(a, "browser_download_url")))
                 .Where(a => a.Name.Length > 0 && Uri.TryCreate(a.Url, UriKind.Absolute, out var u) && u.Scheme == "https")
                 .ToList();
-            // The setup program (an .exe); a release from before it came as an .msi.
-            var installer = files.FirstOrDefault(f => f.Name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase));
-            if (installer.Name is null) installer = files.FirstOrDefault(f => f.Name.EndsWith(".msi", StringComparison.OrdinalIgnoreCase));
+            // The .msi: every copy of Nyatch was installed from one. (1.0.0 and 1.0.1 also came with a setup
+            // program, an .exe, that could not start: WiX 5's Theme="none" leaves out what its setup reads first.)
+            var installer = files.FirstOrDefault(f => f.Name.EndsWith(".msi", StringComparison.OrdinalIgnoreCase));
+            if (installer.Name is null) installer = files.FirstOrDefault(f => f.Name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase));
             if (installer.Name is null) return null;
             var checksum = files.FirstOrDefault(f => f.Name.Equals(installer.Name + ".sha256", StringComparison.OrdinalIgnoreCase));
             var signature = files.FirstOrDefault(f => f.Name.Equals(installer.Name + ".sig", StringComparison.OrdinalIgnoreCase));

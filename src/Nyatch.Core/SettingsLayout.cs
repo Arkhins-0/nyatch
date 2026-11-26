@@ -66,7 +66,7 @@ public static class SettingsLayout
         ]),
         new("alerts", Features, "Alerts", "Alerts", "Short notices the top notch shows when something changes.",
         [
-            new("System", ["Modules.Volume", "Modules.Brightness", "Modules.CapsLock", "Modules.Battery", "Modules.Progress", "Modules.Clipboard"]),
+            new("System", ["Modules.Volume", "Modules.Brightness", "Modules.CapsLock", "Modules.NumLock", "Modules.ScrollLock", "Modules.Battery", "Modules.Progress", "Modules.Clipboard"]),
             new("Bluetooth", ["Modules.BluetoothIndicator", "Modules.BluetoothShowBattery"]),
             new("Do not disturb", ["Modules.DoNotDisturbIndicator", "Modules.NotificationRespectDnD"]),
             new("Notices", ["Modules.StatusCountdownProgress"]),

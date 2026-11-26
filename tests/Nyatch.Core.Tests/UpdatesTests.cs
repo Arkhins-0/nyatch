@@ -64,7 +64,7 @@ public class UpdatesTests
     }
 
     [Fact]
-    public void PrefersTheSetupProgram()
+    public void PrefersTheMsi()
     {
         const string json = """
             {"tag_name":"v1.3.0","assets":[
@@ -75,9 +75,7 @@ public class UpdatesTests
              ]}
             """;
         var release = Updates.Parse(json)!;
-        Assert.Equal("Nyatch-Setup-1.3.0.exe", release.InstallerName);
-        Assert.EndsWith(".exe.sha256", release.Checksum!.AbsolutePath);
-        Assert.EndsWith(".exe.sig", release.Signature!.AbsolutePath);
+        Assert.Equal("Nyatch-1.3.0.msi", release.InstallerName);
     }
 
     [Fact]

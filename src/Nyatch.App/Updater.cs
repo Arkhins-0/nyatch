@@ -260,19 +260,15 @@ internal sealed class Updater
             // Nyatch is installed for the whole PC, so the installer needs administrator rights: Windows
             // asks (its usual prompt), then it runs without any more questions.
             // The setup program runs itself; an .msi (a release from before it) through msiexec.
+            // The installer starts the new version when it is done (AUTOLAUNCH=1), as you and not as
+            // administrator. (A helper of Nyatch's own could not wait for it: an administrator's process
+            // cannot be waited on from here, so it started Nyatch too soon, and the installer closed it.)
             var start = _readyFile.EndsWith(".msi", StringComparison.OrdinalIgnoreCase)
-                ? new ProcessStartInfo("msiexec.exe", $"/i \"{_readyFile}\" /qn /norestart /l*v \"{log}\"")
-                : new ProcessStartInfo(_readyFile, $"/quiet /norestart /log \"{log}\"");
+                ? new ProcessStartInfo("msiexec.exe", $"/i \"{_readyFile}\" AUTOLAUNCH=1 /qn /norestart /l*v \"{log}\"")
+                : new ProcessStartInfo(_readyFile, $"/quiet /norestart AUTOLAUNCH=1 /log \"{log}\"");
             start.UseShellExecute = true;
             start.Verb = "runas";
-            var installer = Process.Start(start);
-            // The new version is started again as you, not as administrator: a hidden helper waits for
-            // the installer to finish and then opens Nyatch.
-            if (installer is not null && Environment.ProcessPath is { } exe)
-            {
-                var wait = $"Wait-Process -Id {installer.Id} -ErrorAction SilentlyContinue; Start-Process -FilePath '{exe.Replace("'", "''")}'";
-                Process.Start(new ProcessStartInfo("powershell.exe", $"-NoProfile -WindowStyle Hidden -Command \"{wait}\"") { UseShellExecute = false, CreateNoWindow = true });
-            }
+            Process.Start(start);
             Set(State.Installing, "Installing the update. Nyatch restarts by itself.");
             // Out of the installer's way, so it can replace this copy's files.
             var later = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };

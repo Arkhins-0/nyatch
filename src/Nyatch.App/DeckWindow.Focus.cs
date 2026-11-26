@@ -51,7 +51,8 @@ internal sealed partial class DeckWindow
             snoozed is { } so && so.Alarm.Id == a.Id ? "Snoozed " + SnoozeLeft(so.At) : Clean(a.DaysWords),
             // A snoozed alarm's switch is on (a one-off is already off once it rang): switching it off ends the snooze.
             a.On || snoozed is { } sn && sn.Alarm.Id == a.Id ? "1" : "0", (OpenAlarm + i).ToString(CultureInfo.InvariantCulture), (SwitchAlarm + i).ToString(CultureInfo.InvariantCulture)));
-        var alarms = string.Join('\u001D', new[] { string.Join('\u001F', Clean(next), AddAlarm.ToString(CultureInfo.InvariantCulture), FocusSettings.ToString(CultureInfo.InvariantCulture)) }.Concat(rows));
+        // The head: its words, the + and gear buttons, and 1 while an alarm is snoozed (her picture shows it).
+        var alarms = string.Join('\u001D', new[] { string.Join('\u001F', Clean(next), AddAlarm.ToString(CultureInfo.InvariantCulture), FocusSettings.ToString(CultureInfo.InvariantCulture), snoozed is null ? "0" : "1") }.Concat(rows));
 
         return string.Join('\u001E', timer, watch, alarms, ((int)_timer.Length.TotalMinutes).ToString(CultureInfo.InvariantCulture));
     }
@@ -222,7 +223,15 @@ internal sealed partial class DeckWindow
             // Space snoozes it (for as long as the settings say), Enter stops it.
             var snooze = int.TryParse(_settings.Get("Deck.SnoozeMinutes"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var m) ? Math.Clamp(m, 1, 60) : 10;
             Ring(title, $"Space snooze {snooze} min · Enter stop", "Snooze", "Your alarm is ringing.", alarm.Sound.Length > 0 ? alarm.Sound : _settings.Get("Deck.AlarmSound"),
-                () => _snoozed = (alarm, DateTime.Now.AddMinutes(snooze)));
+                () =>
+                {
+                    _snoozed = (alarm, DateTime.Now.AddMinutes(snooze));
+                    // The top notch says so for a moment, with when it rings again.
+                    var again = DateTime.Now.AddMinutes(snooze);
+                    var at = TwelveHour() ? $"{(again.Hour % 12 == 0 ? 12 : again.Hour % 12)}:{again.Minute:00} {(again.Hour < 12 ? "AM" : "PM")}" : $"{again.Hour:00}:{again.Minute:00}";
+                    Island.ShowNotice(alarm.Label.Length > 0 ? alarm.Label : "Alarm", $"Snoozed · rings again at {at}");
+                    SendNativeData();
+                });
         }
         if (due.Count > 0) SendNativeData();
     }

@@ -69,6 +69,8 @@ internal sealed partial class SettingsWindow
         ["Modules.Volume"] = "\uE767",
         ["Modules.Brightness"] = "\uE706",
         ["Modules.CapsLock"] = "\uE765",
+        ["Modules.NumLock"] = "\uE765",
+        ["Modules.ScrollLock"] = "\uE765",
         ["Modules.Battery"] = "\uE83F",
         ["Modules.BluetoothIndicator"] = "\uE702",
         ["Modules.TimerModule"] = "\uE916",

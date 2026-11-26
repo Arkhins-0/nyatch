@@ -664,6 +664,9 @@ struct Settings {
     // The activity gate is the one that actually hides the pill; the others stop
     // the work leading up to it.
     bool capsLock = true;
+    // Nyatch: Num Lock and Scroll Lock have switches of their own (Num Lock used to come with Caps Lock).
+    bool numLock = true;
+    bool scrollLock = true;
     bool timerEnabled = true;
     bool hideShowHotkeyEnabled = true;
     UINT hideShowModifiers = MOD_CONTROL | MOD_ALT | MOD_NOREPEAT;
@@ -887,6 +890,9 @@ struct CapsLockSnapshot {
     bool capsOn = false;
     bool numOn = false;
     bool isNumEvent = false;
+    // Nyatch: Scroll Lock, shown as the third key.
+    bool scrollOn = false;
+    bool isScrollEvent = false;
     double expiresAt = 0.0;
 };
 
@@ -2618,6 +2624,8 @@ void LoadSettings() {
     next.battery = Wh_GetIntSetting(L"Modules.Battery") != 0;
     next.progress = Wh_GetIntSetting(L"Modules.Progress") != 0;
     next.capsLock = Wh_GetIntSetting(L"Modules.CapsLock") != 0;
+    next.numLock = Wh_GetIntSetting(L"Modules.NumLock") != 0;
+    next.scrollLock = Wh_GetIntSetting(L"Modules.ScrollLock") != 0;
     next.timerEnabled = Wh_GetIntSetting(L"Modules.TimerModule") != 0;
 
     next.hideShowHotkeyEnabled = Wh_GetIntSetting(L"Shortcuts.HideShowHotkeyEnabled") != 0;
@@ -3041,7 +3049,8 @@ void LoadSettings() {
     {
         std::lock_guard lock(g_settingsMutex);
         cityChanged = next.weatherCity != g_settings.weatherCity;
-        capsLockChanged = next.capsLock != g_settings.capsLock;
+        capsLockChanged = next.capsLock != g_settings.capsLock || next.numLock != g_settings.numLock ||
+                          next.scrollLock != g_settings.scrollLock;
         hotkeySettingChanged =
             next.hideShowHotkeyEnabled != g_settings.hideShowHotkeyEnabled ||
             next.hideShowModifiers != g_settings.hideShowModifiers ||
@@ -16016,7 +16025,9 @@ class Renderer {
             if (herUnder && side > 30.0f * u) {
                 const float cx = left + cardW * 0.5f;
                 const D2D1_RECT_F box = D2D1::RectF(cx - side * 0.5f, bottom - side, cx + side * 0.5f, bottom);
-                if (runs(timer)) DeckHer(L"focus", {L"focus-work", L"cool", L"idle"}, box);
+                // An alarm snoozed first (the head's fourth field is 1), then what runs.
+                if (field(alarmHead, 3) == L"1") DeckHer(L"focus", {L"alarm-snoozed", L"sleeping", L"idle"}, box);
+                else if (runs(timer)) DeckHer(L"focus", {L"focus-work", L"cool", L"idle"}, box);
                 else if (runs(watch)) DeckHer(L"focus", {L"focus-stopwatch", L"dance", L"idle"}, box, 0, 0.0);
                 else DeckHer(L"focus", {L"focus-idle", L"idle"}, box);
             }
@@ -17622,7 +17633,7 @@ class Renderer {
                 DrawBluetoothDevice(state, unscaledRect);
                 break;
             case IslandKind::Timer:
-                DrawTimer(state, unscaledRect);
+                DrawTimer(state, settings, unscaledRect);
                 break;
             case IslandKind::BatteryLow:
                 DrawBattery(state, unscaledRect);
@@ -20554,13 +20565,36 @@ class Renderer {
         ComPtr<IDWriteTextLayout> note, clock, date;
         DWRITE_TEXT_METRICS noteM{}, clockM{}, dateM{};
         lineOf(settings.clockNote, noteFmt, note, noteM);
+        // Nyatch: your line as without her picture: a little bolder and whiter, up to two lines of about 25
+        // characters (as wide as fits beside her).
+        float noteH = noteM.height;
+        if (note) {
+            float lineW = room;
+            ComPtr<IDWriteTextLayout> sample;
+            static const std::wstring kSample = L"abcdefghijklmnopqrstuvwxy";
+            if (SUCCEEDED(dwriteFactory_->CreateTextLayout(kSample.c_str(), static_cast<UINT32>(kSample.size()), noteFmt, 4000.0f, 200.0f, &sample)) && sample) {
+                DWRITE_TEXT_METRICS m{};
+                sample->GetMetrics(&m);
+                lineW = std::min(room, m.widthIncludingTrailingWhitespace + 2.0f * scale);
+            }
+            note->SetFontWeight(DWRITE_FONT_WEIGHT_SEMI_BOLD, DWRITE_TEXT_RANGE{0, static_cast<UINT32>(settings.clockNote.size())});
+            note->SetMaxWidth(lineW);
+            note->SetWordWrapping(DWRITE_WORD_WRAPPING_WRAP);
+            note->GetMetrics(&noteM);
+            noteH = noteM.height;
+            if (noteM.lineCount > 2) {
+                std::vector<DWRITE_LINE_METRICS> lines(noteM.lineCount);
+                UINT32 got = 0;
+                if (SUCCEEDED(note->GetLineMetrics(lines.data(), noteM.lineCount, &got)) && got >= 2) noteH = lines[0].height + lines[1].height;
+            }
+        }
         lineOf(timeText, bigFmt, clock, clockM);
         lineOf(dateText, dateFmt, date, dateM);
         // The clock shrinks to fit beside her, the other lines are cut at the edge.
         const float clockFit = clockM.width > room ? room / clockM.width : 1.0f;
         const float clockH = clockM.height * clockFit;
         const float gap = 2.0f * scale;
-        const float total = (note ? noteM.height + 4.0f * scale : 0.0f) + clockH + gap + dateM.height;
+        const float total = (note ? noteH + 4.0f * scale : 0.0f) + clockH + gap + dateM.height;
         float y = (rect.top + rect.bottom) * 0.5f - 6.0f * scale - total * 0.5f;
 
         if (settings.clockAccentGlow) {
@@ -20582,9 +20616,12 @@ class Renderer {
 
         target_->PushAxisAlignedClip(D2D1::RectF(left - 2.0f * scale, rect.top, right, rect.bottom), D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
         if (note) {
-            mutedBrush_->SetOpacity(0.85f);
-            target_->DrawTextLayout(D2D1::Point2F(left, y), note.Get(), mutedBrush_.Get(), D2D1_DRAW_TEXT_OPTIONS_NONE);
-            y += noteM.height + 4.0f * scale;
+            target_->PushAxisAlignedClip(D2D1::RectF(left - 2.0f * scale, y, right, y + noteH), D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
+            textBrush_->SetOpacity(0.86f);
+            target_->DrawTextLayout(D2D1::Point2F(left, y), note.Get(), textBrush_.Get(), D2D1_DRAW_TEXT_OPTIONS_NONE);
+            textBrush_->SetOpacity(1.0f);
+            target_->PopAxisAlignedClip();
+            y += noteH + 4.0f * scale;
         }
         auto drawDate = [&]() {
             if (!date) return;
@@ -25248,7 +25285,7 @@ class Renderer {
         mutedBrush_->SetOpacity(0.58f);
     }
 
-    void DrawTimer(const SharedState& state, D2D1_RECT_F rect) {
+    void DrawTimer(const SharedState& state, const Settings& settings, D2D1_RECT_F rect) {
         if (rect.bottom - rect.top < 24.0f || rect.right - rect.left < 140.0f) return;
         const double now = NowSeconds();
         const bool ringing = state.timer.ringing;
@@ -25372,6 +25409,12 @@ class Renderer {
                 smallTextFormat_->SetParagraphAlignment(oldPara);
             }
             textRight = again.left - 10.0f;
+            // Nyatch: her face before the buttons, as it rings (the island grew by its width; see ActivityForKind).
+            const float side = std::min(rect.bottom - rect.top - 10.0f, 44.0f);
+            const D2D1_RECT_F face = D2D1::RectF(again.left - 8.0f - side, cy - side * 0.5f, again.left - 8.0f, cy + side * 0.5f);
+            if (settings.characters && DrawCharacter(settings, L"notice", {L"ringing", L"surprised", L"shocked", L"idle"}, face, NowSeconds(), 0, 0.0)) {
+                textRight = face.left - 10.0f;
+            }
         } else {
             g_ringAgainRect = {};
             g_ringStopRect = {};
@@ -25413,7 +25456,11 @@ class Renderer {
         std::wstring label;
         bool isOn = false;
 
-        if (state.capsLock.isNumEvent) {
+        if (state.capsLock.isScrollEvent) {
+            glyph = L"\u2195";
+            label = Loc(L"Scroll Lock");
+            isOn = state.capsLock.scrollOn;
+        } else if (state.capsLock.isNumEvent) {
             glyph = L"1";
             label = Loc(L"Num Lock");
             isOn = state.capsLock.numOn;
@@ -26875,7 +26922,8 @@ Activity ActivityForKind(IslandKind kind, const Settings& settings, const Shared
             activity.height = 54.0f;
             break;
         case IslandKind::Timer:
-            activity.width = state.timer.ringing ? 470.0f : 260.0f;
+            // Ringing: its words, her face (when shown) and the two buttons.
+            activity.width = state.timer.ringing ? (settings.characters ? 470.0f + 52.0f : 470.0f) : 260.0f;
             activity.height = 54.0f;
             break;
         case IslandKind::DoNotDisturb:
@@ -26942,7 +26990,7 @@ std::vector<IslandKind> ChooseActivities(const SharedState& state, const Setting
     // settings.capsLock is checked here, like every other module above and below.
     // Leaving it out was what made the Caps Lock toggle not actually work: the
     // handler gate stopped the nudge but the pill was still selected and drawn.
-    if (settings.capsLock && state.capsLock.active && now < state.capsLock.expiresAt) {
+    if ((settings.capsLock || settings.numLock || settings.scrollLock) && state.capsLock.active && now < state.capsLock.expiresAt) {
         activities.push_back(IslandKind::CapsLock);
     }
     if (state.device.active && now < state.device.expiresAt) {
@@ -27008,11 +27056,12 @@ LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
     if (nCode == HC_ACTION) {
         if (wParam == WM_KEYUP || wParam == WM_SYSKEYUP) {
             auto* kbd = reinterpret_cast<KBDLLHOOKSTRUCT*>(lParam);
-            if (kbd->vkCode == VK_CAPITAL || kbd->vkCode == VK_NUMLOCK) {
+            if (kbd->vkCode == VK_CAPITAL || kbd->vkCode == VK_NUMLOCK || kbd->vkCode == VK_SCROLL) {
                 const bool capsOn = (GetKeyState(VK_CAPITAL) & 0x0001) != 0;
                 const bool numOn = (GetKeyState(VK_NUMLOCK) & 0x0001) != 0;
+                const bool scrollOn = (GetKeyState(VK_SCROLL) & 0x0001) != 0;
                 if (HWND hwnd = g_hwnd) {
-                    const LPARAM state = (capsOn ? 1 : 0) | (numOn ? 2 : 0);
+                    const LPARAM state = (capsOn ? 1 : 0) | (numOn ? 2 : 0) | (scrollOn ? 4 : 0);
                     PostMessageW(hwnd, WM_APP_CAPSLOCK, kbd->vkCode, state);
                 }
             }
@@ -27026,7 +27075,7 @@ LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
 // hook exists solely to notice Caps Lock and Num Lock for the indicator pill;
 // with that module off it was still running for nothing.
 static bool CapsLockHookWanted() {
-    return g_settings.capsLock;
+    return g_settings.capsLock || g_settings.numLock || g_settings.scrollLock;
 }
 
 // Wakes the keyboard thread so it re-evaluates whether the hook is needed.
@@ -28324,16 +28373,21 @@ LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             return 0;
 
         case WM_APP_CAPSLOCK: {
-            if (!g_settings.capsLock) return 0;
             bool isNum = (wParam == VK_NUMLOCK);
+            bool isScroll = (wParam == VK_SCROLL);
+            // Nyatch: each key by its own switch.
+            if (isScroll ? !g_settings.scrollLock : isNum ? !g_settings.numLock : !g_settings.capsLock) return 0;
             bool capsOn = (lParam & 1) != 0;
             bool numOn = (lParam & 2) != 0;
+            bool scrollOn = (lParam & 4) != 0;
             {
                 std::lock_guard lock(g_stateMutex);
                 g_state.capsLock.active = true;
                 g_state.capsLock.capsOn = capsOn;
                 g_state.capsLock.numOn = numOn;
                 g_state.capsLock.isNumEvent = isNum;
+                g_state.capsLock.scrollOn = scrollOn;
+                g_state.capsLock.isScrollEvent = isScroll;
                 g_state.capsLock.expiresAt = NowSeconds() + 2.5;
             }
             TriggerNudge();
@@ -30459,6 +30513,24 @@ __declspec(dllexport) void NyatchSetRinging(const wchar_t* title) {
         g_state.timer.ringing = title && *title;
         g_state.timer.ringTitle = title ? title : L"";
     }
+    g_layoutDirty = true;
+    TriggerNudge();
+}
+
+// Nyatch: a notice of the app's own on the top notch, as a notification shows (no icon: the bell), for a few
+// seconds: "Alarm" over "Snoozed · rings again at 7:40".
+__declspec(dllexport) void NyatchShowNotice(const wchar_t* app, const wchar_t* title, const wchar_t* body) {
+    NotificationSnapshot notification;
+    notification.active = true;
+    notification.app = app ? app : L"Nyatch";
+    notification.title = title ? title : L"";
+    notification.body = body ? body : L"";
+    notification.expiresAt = NowSeconds() + 4.0;
+    {
+        std::lock_guard lock(g_stateMutex);
+        g_state.notification = std::move(notification);
+    }
+    g_quickBarUntil = NowSeconds() + 4.0;  // shown over a full-screen app too, as the volume bar is
     g_layoutDirty = true;
     TriggerNudge();
 }

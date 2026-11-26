@@ -66,7 +66,7 @@ You need Visual Studio 2022 with "Desktop development with C++" and the .NET 10 
 .\build.ps1          # build
 .\build.ps1 -Run     # build and start
 .\build.ps1 -Test    # build and run the tests
-.\build.ps1 -Exe     # build the installer: out\Nyatch-Setup-<version>.exe
+.\build.ps1 -Exe     # build the installer: out\Nyatch-<version>.msi
 ```
 
 | Folder | What is in it |

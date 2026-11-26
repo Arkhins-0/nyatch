@@ -171,6 +171,12 @@ internal static class Island
     public static void DeckSetPageData(string data) => NyatchDeckSetPageData(data);
 
     [DllImport(Library, ExactSpelling = true, CharSet = CharSet.Unicode)]
+    private static extern void NyatchShowNotice(string app, string title, string body);
+
+    /// <summary>A notice of Nyatch's own on the top notch for a few seconds, as a notification is shown.</summary>
+    public static void ShowNotice(string app, string title, string body = "") => NyatchShowNotice(app, title, body);
+
+    [DllImport(Library, ExactSpelling = true, CharSet = CharSet.Unicode)]
     private static extern void NyatchSetRinging(string? title);
 
     /// <summary>The top notch shows what rings ("Timer finished") with Enter and Space, until it is told null.</summary>

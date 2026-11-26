@@ -276,7 +276,13 @@
     $name: Brightness
     $description: 'Laptop screens.'
   - CapsLock: true
-    $name: Caps Lock and Num Lock
+    $name: Caps Lock
+    $description: ''
+  - NumLock: true
+    $name: Num Lock
+    $description: ''
+  - ScrollLock: true
+    $name: Scroll Lock
     $description: ''
   - Battery: true
     $name: Battery

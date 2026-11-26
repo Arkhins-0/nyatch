@@ -2,7 +2,7 @@
 #   .\build.ps1            Release build
 #   .\build.ps1 -Run       build, then start the app
 #   .\build.ps1 -Test      build, then run the tests
-#   .\build.ps1 -Exe       build, then make the installer: out\Nyatch-Setup-<version>.exe (the .msi inside it)
+#   .\build.ps1 -Exe       build, then make the installer: out\Nyatch-<version>.msi
 #   .\build.ps1 -Release   make the installer, sign it and publish it as a GitHub release, which
 #                          nyatch.arkhins.com serves within a minute (version from version.txt;
 #                          notes with -Notes "...")
@@ -94,7 +94,7 @@ if ($Exe) {
     # WiX is a tool of this project (dotnet-tools.json), with its extensions in installer\.wix
     # (not in the repository: fetched here the first time).
     dotnet tool restore | Out-Null
-    foreach ($extension in "WixToolset.UI.wixext", "WixToolset.Util.wixext", "WixToolset.Bal.wixext") {
+    foreach ($extension in "WixToolset.UI.wixext", "WixToolset.Util.wixext") {
         if (-not (Test-Path (Join-Path $root "installer\.wix\extensions\$extension"))) {
             Push-Location (Join-Path $root "installer")
             try { dotnet wix extension add "$extension/5.0.2" | Out-Null } finally { Pop-Location }
@@ -108,26 +108,18 @@ if ($Exe) {
             -d "BrandDir=$(Join-Path $root 'assets\brand')" -ext WixToolset.UI.wixext `
             -o $msiPath
         if ($LASTEXITCODE -ne 0) { throw "The installer did not build." }
-        # The setup program people download: the MSI inside an .exe (Bundle.wxs).
-        $setupPath = Join-Path $root "out\Nyatch-Setup-$Version.exe"
-        # (Its extension's DLL has another name than its package: it is named in full.)
-        $bal = Join-Path $root "installer\.wix\extensions\WixToolset.Bal.wixext\5.0.2\wixext5\WixToolset.BootstrapperApplications.wixext.dll"
-        dotnet wix build Bundle.wxs -arch x64 -ext $bal `
-            -d "Version=$Version" -d "MsiFile=$msiPath" -d "IconFile=$(Join-Path $root 'src\Nyatch.App\nyatch.ico')" `
-            -o $setupPath
-        if ($LASTEXITCODE -ne 0) { throw "The setup program did not build." }
+        # Only the .msi: the setup program (an .exe around it) is not made any more. WiX 5's
+        # Theme="none" built one that could not start, so it never installed anything.
     }
     finally {
         Pop-Location
     }
-    Write-Host "Installer: $setupPath"
+    Write-Host "Installer: $msiPath"
 
     if ($Release) {
         # The checksum, and the signature that installed copies check before updating (tools\ReleaseSigning.cs).
-        # The setup program for downloads, and the MSI too: copies from before the setup program (1.0.0)
-        # update only from an .msi.
         $files = @()
-        foreach ($file in $setupPath, $msiPath) {
+        foreach ($file in @($msiPath)) {
             $hash = (Get-FileHash $file -Algorithm SHA256).Hash.ToLowerInvariant()
             $name = Split-Path $file -Leaf
             [System.IO.File]::WriteAllText("$file.sha256", "$hash  $name`n", (New-Object System.Text.UTF8Encoding $false))
