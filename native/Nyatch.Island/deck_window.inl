@@ -585,7 +585,12 @@ DWORD WINAPI ThreadProc(LPVOID) {
         // and gone again a moment after it closes.
         if (open || asked || g_request.load() == 1) lastOpenAt = now;
         const bool hiddenAtRest = kSide ? settings.sideHiddenAtRest : settings.deckHiddenAtRest;
-        if (!(kSide ? settings.sideEnabled : settings.deckEnabled) || (hiddenAtRest && now - lastOpenAt > 0.7)) {
+        // Nyatch: and out of the way of a full-screen app (a film, a game) while it is closed: the side panel's tab
+        // is always on top, so it stayed over them. Its hotkey still opens it there, and it is back when full
+        // screen ends.
+        const bool fullscreenNow = g_isFullscreen.load(std::memory_order_relaxed);
+        if (!(kSide ? settings.sideEnabled : settings.deckEnabled) || (hiddenAtRest && now - lastOpenAt > 0.7) ||
+            (fullscreenNow && now - lastOpenAt > 0.7)) {
             if (shown) {
                 ShowWindow(hwnd, SW_HIDE);
                 DwmBackdrop::HideAll();
