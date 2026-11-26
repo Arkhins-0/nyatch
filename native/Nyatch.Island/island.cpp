@@ -1378,6 +1378,9 @@ std::atomic<bool> g_isFullscreen = false;              // cached fullscreen stat
 // Nyatch: a full-screen app is in front (and Nyatch is set to keep out of its way), even while the top notch shows
 // something over it (a ringing alarm, the volume, a notice). The second notch and the side panel's tab go by this.
 std::atomic<bool> g_fullscreenInFront = false;
+// Nyatch: the top notch is hidden (parked) for a full-screen app right now. The second notch and the side panel's
+// tab hide and come back with it, at the same moment, rather than by a check of their own.
+std::atomic<bool> g_topParkedForFullscreen = false;
 // Nyatch: a full-screen app (a game) is in front and the game overlay is on: the notch stays, showing
 // only the overlay (no song, no notices over the game). "Hide on full screen" used to hide the overlay
 // too, so it never showed while playing.
@@ -29335,6 +29338,7 @@ DWORD WINAPI RenderThreadProc(void*) {
             // hidden.
             g_autoHiddenParked = false;
             wasAutoHiddenParked = false;
+            g_topParkedForFullscreen.store(false, std::memory_order_relaxed);
 
             if (!wasManuallyHidden) {
                 // Just hid: drop to zero-CPU parking immediately, no
@@ -29392,6 +29396,7 @@ DWORD WINAPI RenderThreadProc(void*) {
                     } else if (g_fullscreenOverrideVisible.load()) {
                         g_autoHiddenParked = false;
                     }
+                    if (!g_autoHiddenParked.load()) g_topParkedForFullscreen.store(false, std::memory_order_relaxed);
                 } else {
                     MsgWaitForMultipleObjects(1, &g_stopEvent, FALSE, INFINITE, QS_ALLINPUT);
                 }
@@ -30247,6 +30252,7 @@ DWORD WINAPI RenderThreadProc(void*) {
 
         if (wantsAutoHiddenPark) {
             parkedForFullscreen = fullscreenSuppressed;
+            g_topParkedForFullscreen.store(fullscreenSuppressed, std::memory_order_relaxed);
             wasAutoHiddenParked = true;
             g_autoHiddenParked = true;
             ShowWindow(hwnd, SW_HIDE);

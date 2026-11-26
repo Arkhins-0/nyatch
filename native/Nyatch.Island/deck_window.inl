@@ -588,7 +588,8 @@ DWORD WINAPI ThreadProc(LPVOID) {
         // Nyatch: and out of the way of a full-screen app (a film, a game) while it is closed: the side panel's tab
         // is always on top, so it stayed over them. Its hotkey still opens it there, and it is back when full
         // screen ends.
-        const bool fullscreenNow = g_fullscreenInFront.load(std::memory_order_relaxed);
+        const bool fullscreenNow = g_topParkedForFullscreen.load(std::memory_order_relaxed) ||
+                                   g_fullscreenInFront.load(std::memory_order_relaxed);
         if (!(kSide ? settings.sideEnabled : settings.deckEnabled) || (hiddenAtRest && now - lastOpenAt > 0.7) ||
             (fullscreenNow && now - lastOpenAt > 0.7)) {
             if (shown) {
@@ -1326,6 +1327,9 @@ DWORD WINAPI ThreadProc(LPVOID) {
                          SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
             // Never over the pages: just under the app's window, which draws them on this outline.
             if (HWND pages = g_pagesWindow.load(); pages && IsWindowVisible(pages)) {
+                // Raised with its pages window, so the two stay together above a full-screen app (tucked under a pages
+                // window that app had come over, it fell behind the app and was raised a second later: it flashed).
+                if (wantTopmost) SetWindowPos(pages, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
                 SetWindowPos(hwnd, pages, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
             }
             topmostNow = wantTopmost;
@@ -1341,6 +1345,9 @@ DWORD WINAPI ThreadProc(LPVOID) {
                 lastTopCheck = now;
                 EnsureTopmost(hwnd);
                 if (HWND pages = g_pagesWindow.load(); pages && IsWindowVisible(pages)) {
+                    // Raised with its pages window, so the two stay together above a full-screen app (tucked under a pages
+                    // window that app had come over, it fell behind the app and was raised a second later: it flashed).
+                    SetWindowPos(pages, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
                     SetWindowPos(hwnd, pages, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
                 }
             }
