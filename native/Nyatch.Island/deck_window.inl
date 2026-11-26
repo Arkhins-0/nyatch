@@ -1449,6 +1449,18 @@ DWORD WINAPI ThreadProc(LPVOID) {
                 if (!shown) {
                     ShowWindow(hwnd, SW_SHOWNOACTIVATE);
                     shown = true;
+                    // Nyatch: on top the moment it shows, as the top notch is: back from a full-screen app (KMPlayer
+                    // keeps itself on top), it was behind that app until its once-a-second check, so it came late.
+                    if (wantTopmost) {
+                        SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+                        if (HWND pages = g_pagesWindow.load(); pages && IsWindowVisible(pages)) {
+                            SetWindowPos(pages, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+                            SetWindowPos(hwnd, pages, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+                        }
+                        topmostNow = true;
+                        topmostKnown = true;
+                        lastTopCheck = now;
+                    }
                 }
             }
         }
