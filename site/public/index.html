@@ -10,136 +10,186 @@
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://nyatch.arkhins.com">
   <meta property="og:image" content="https://nyatch.arkhins.com/shots/desktop.webp">
-  <meta name="theme-color" content="#0d0e16">
+  <meta name="theme-color" content="#08080a">
   <link rel="icon" href="/favicon.ico" sizes="any">
   <link rel="icon" href="/logo.png" type="image/png">
-  <link rel="preload" as="image" href="/shots/desktop.webp">
+  <link rel="preload" as="image" href="/shots/wallpaper.webp">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <!-- A real desktop: Nyatch's own notches over a plain wallpaper, captured from the app. -->
-  <header class="hero">
-    <nav class="corners" aria-label="Main">
-      <a class="brand" href="/"><img src="/logo.png" alt="" width="24" height="24">Nyatch</a>
-      <div class="links">
-        <a href="#llm">LLM panel</a>
-        <a href="#themes">Themes</a>
+  <!-- The first screen is a desktop with Nyatch on it: the notch at the top, the second notch at the foot and the
+       LLM tab at the edge. Each opens to what the app shows (captured from it), as it does on Windows. -->
+  <header class="desk" id="desk">
+    <nav class="corner" aria-label="Main">
+      <a class="brand" href="/"><img src="/logo.png" alt="" width="22" height="22">Nyatch</a>
+      <div>
+        <a href="#top-notch">Tour</a>
         <a href="/releases">Releases</a>
-        <a class="pill light" href="#download">Download</a>
+        <a class="get-it" href="/download">Download</a>
       </div>
     </nav>
-    <div class="hero-words">
+
+    <div class="notch top" id="top" tabindex="0" role="button" aria-expanded="false" aria-label="The top notch. Point at it to open it; scroll on it to turn its pages.">
+      <span class="closed"><span class="dot" aria-hidden="true"></span><span data-clock>9:41</span></span>
+      <span class="pages" aria-hidden="true">
+        <img src="/shots/cut/top-calendar.webp" alt="" width="390" height="186" class="on">
+        <img src="/shots/cut/top-hardware.webp" alt="" width="390" height="186">
+      </span>
+    </div>
+
+    <div class="words">
       <h1>A notch for Windows.</h1>
-      <p>The time, your music and the weather at the top of the screen. <br>Your apps, files and chats at the bottom.</p>
-      <div class="actions">
-        <a class="pill light large" href="{{DOWNLOAD_URL}}" {{DOWNLOAD_STATE}}>{{DOWNLOAD_LABEL}}</a>
-        <a class="quiet-link" href="/releases">What changed</a>
-      </div>
-      <p class="meta">{{DOWNLOAD_META}}</p>
+      <p>The time, your music and the weather at the top of the screen. Your apps, files and chats at the bottom.</p>
+      <p class="go">
+        <a class="button" href="{{DOWNLOAD_URL}}" {{DOWNLOAD_STATE}}>{{DOWNLOAD_LABEL}}</a>
+        <span class="meta">{{DOWNLOAD_META}}</span>
+      </p>
+    </div>
+
+    <p class="hint" aria-hidden="true">Point at the notch. Scroll on it. Try the tab on the right, and the one at the bottom.</p>
+
+    <button class="tab" id="tab" type="button" aria-expanded="false" aria-controls="panel"><span>LLM</span></button>
+    <div class="panel" id="panel"><img src="/shots/cut/llm-panel.webp" alt="The LLM panel, slid in from the right edge" width="442" height="1016"></div>
+
+    <div class="notch bottom" id="bottom" tabindex="0" role="button" aria-expanded="false" aria-label="The second notch. Point at it to open its page picker.">
+      <span class="closed">Ctrl Alt N</span>
+      <span class="pages" aria-hidden="true"><img src="/shots/cut/deck-picker.webp" alt="" width="448" height="335" class="on"></span>
     </div>
   </header>
 
   <main>
-    <section id="top-notch">
-      <div class="wrap">
-        <h2>Point at it. It opens.</h2>
-        <p class="lead">Closed, it is the time. Open, the wheel turns it through its pages.</p>
-        <figure class="shot wide"><img src="/shots/top-calendar.webp" alt="The top notch open on the calendar page, at the top of a Windows desktop" width="645" height="239" loading="lazy"></figure>
-        <div class="pair">
-          <figure class="shot"><img src="/shots/top-hardware.webp" alt="The top notch's hardware page: processor, memory, graphics, disk and network" width="651" height="241" loading="lazy"></figure>
-          <dl class="facts">
-            <div><dt>Player and lyrics</dt><dd>Whatever is playing, with lyrics in time, word by word where they exist.</dd></div>
-            <div><dt>Calendar and weather</dt><dd>The month with today marked, and the day ahead hour by hour.</dd></div>
-            <div><dt>Your PC</dt><dd>Processor, graphics, memory, disk, and how fast things come and go.</dd></div>
-            <div><dt>A tray for files</dt><dd>Drop a file on it to keep it near; drag it out where you need it.</dd></div>
-          </dl>
-        </div>
+    <section id="top-notch" class="row">
+      <div class="text">
+        <h2>Closed, it is the time.</h2>
+        <p>Point at it and it opens. The mouse wheel turns it through its pages: the song that is playing with its lyrics in time, the month, the day's weather hour by hour, how hard your PC is working, and a tray to keep files near.</p>
+        <p>It hides for films and games, unless you want its overlay.</p>
+      </div>
+      <div class="show">
+        <figure class="strip">
+          <img src="/shots/cut/top-calendar.webp" alt="The top notch open on the calendar" width="390" height="186" loading="lazy">
+        </figure>
+        <figure class="strip">
+          <img src="/shots/cut/top-hardware.webp" alt="The top notch open on the hardware page: processor, memory, graphics, disk and network" width="390" height="186" loading="lazy">
+        </figure>
       </div>
     </section>
 
-    <section id="second-notch">
-      <div class="wrap">
-        <h2>A second notch for the rest.</h2>
-        <p class="lead">At the bottom of the screen. <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>N</kbd>, then a letter, opens any of its pages.</p>
-        <figure class="shot wide"><img src="/shots/deck-picker.webp" alt="The second notch's page picker, each page with its letter" width="641" height="427" loading="lazy"></figure>
-        <div class="three">
-          <figure class="shot"><img src="/shots/deck-focus.webp" alt="The Focus page: a timer, a stopwatch and a pomodoro" width="641" height="427" loading="lazy"><figcaption>Focus</figcaption></figure>
-          <figure class="shot"><img src="/shots/deck-apps.webp" alt="The Apps page: the apps you have open, and the ones you used lately" width="641" height="427" loading="lazy"><figcaption>Apps</figcaption></figure>
-          <figure class="shot"><img src="/shots/deck-online.webp" alt="The Online page: ping, a speed test, and sites you watch" width="641" height="427" loading="lazy"><figcaption>Online</figcaption></figure>
-        </div>
-        <p class="also">Also on it: the clipboard, notifications with Do not disturb, notes and to-dos, and a terminal.</p>
+    <section id="second-notch" class="row flip">
+      <div class="text">
+        <h2>Then a second one, at the bottom.</h2>
+        <p>For the things you reach for all day. <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>N</kbd> opens it, then one letter opens a page: <kbd>A</kbd> your apps, <kbd>F</kbd> the file tray, <kbd>V</kbd> the clipboard, <kbd>B</kbd> notifications, <kbd>T</kbd> focus, <kbd>N</kbd> notes and to-dos, <kbd>O</kbd> online, <kbd>R</kbd> a terminal.</p>
+        <p>Focus has a timer, a stopwatch, and alarms that ring until you stop them. Space snoozes, Enter stops.</p>
+      </div>
+      <div class="show two">
+        <figure class="strip foot"><img src="/shots/cut/deck-focus.webp" alt="The Focus page: a timer, a stopwatch and the alarms" width="448" height="335" loading="lazy"><figcaption>T · Focus</figcaption></figure>
+        <figure class="strip foot"><img src="/shots/cut/deck-apps.webp" alt="The Apps page: the apps you have open and the ones you used lately" width="448" height="335" loading="lazy"><figcaption>A · Apps</figcaption></figure>
+        <figure class="strip foot"><img src="/shots/cut/deck-online.webp" alt="The Online page: ping, a speed test and the sites you watch" width="448" height="335" loading="lazy"><figcaption>O · Online</figcaption></figure>
+        <figure class="strip foot"><img src="/shots/cut/deck-picker.webp" alt="The page picker, each page with its letter" width="448" height="335" loading="lazy"><figcaption>Ctrl Alt N · every page</figcaption></figure>
       </div>
     </section>
 
-    <section id="llm">
-      <div class="wrap split">
-        <div>
-          <h2>Ask, from the edge of the screen.</h2>
-          <p class="lead">Click the tab and the panel slides in. Click anywhere else and it slides away.</p>
-          <p>Bring your own key for any of these. It is kept in Windows' Credential Manager, and goes only to the service you ask.</p>
-          <ul class="logos" aria-label="Services">
-            <li><img src="/ai/claude.webp" alt="" width="20" height="20">Claude</li>
-            <li><img src="/ai/chatgpt.webp" alt="" width="20" height="20">ChatGPT</li>
-            <li><img src="/ai/gemini.webp" alt="" width="20" height="20">Gemini</li>
-            <li><img src="/ai/deepseek.webp" alt="" width="20" height="20">DeepSeek</li>
-            <li><img src="/ai/mistral.webp" alt="" width="20" height="20">Mistral</li>
-            <li><img src="/ai/grok.webp" alt="" width="20" height="20">Grok</li>
-            <li><img src="/ai/groq.webp" alt="" width="20" height="20">Groq</li>
-            <li><img src="/ai/perplexity.webp" alt="" width="20" height="20">Perplexity</li>
-            <li><img src="/ai/openrouter.webp" alt="" width="20" height="20">OpenRouter</li>
-          </ul>
-          <p class="small"><kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>L</kbd> opens it too, even while the panel is hidden. Drag its edge for a quarter, half, three quarters or all of the screen.</p>
-        </div>
-        <figure class="shot tall"><img src="/shots/llm-panel.webp" alt="The LLM panel open at the right edge of the screen" width="842" height="1052" loading="lazy"></figure>
+    <section id="llm" class="row">
+      <div class="text">
+        <h2>A chat at the edge of the screen.</h2>
+        <p>Click the tab and the panel slides in; click anywhere else and it is gone. <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>L</kbd> does the same. Drag its edge to make it a quarter, a half, or all of the screen.</p>
+        <p>Use your own key for Claude, ChatGPT, Gemini, DeepSeek, Mistral, Grok, Groq, Perplexity or OpenRouter. Keys stay in Windows' Credential Manager and go only to the service you ask. Send a screenshot, a picture or a file, or talk to it.</p>
+        <p class="logos" aria-hidden="true">
+          <img src="/ai/claude.webp" alt="" width="22" height="22"><img src="/ai/chatgpt.webp" alt="" width="22" height="22"><img src="/ai/gemini.webp" alt="" width="22" height="22"><img src="/ai/deepseek.webp" alt="" width="22" height="22"><img src="/ai/mistral.webp" alt="" width="22" height="22"><img src="/ai/grok.webp" alt="" width="22" height="22"><img src="/ai/groq.webp" alt="" width="22" height="22"><img src="/ai/perplexity.webp" alt="" width="22" height="22"><img src="/ai/openrouter.webp" alt="" width="22" height="22">
+        </p>
+      </div>
+      <div class="show">
+        <figure class="strip side"><img src="/shots/cut/llm-panel.webp" alt="The LLM panel at the right edge of the screen" width="442" height="1016" loading="lazy"></figure>
       </div>
     </section>
 
-    <section id="themes">
-      <div class="wrap">
-        <h2>Make it yours.</h2>
-        <p class="lead">A theme brings a picture for every moment, its own colour and its own font.</p>
-        <div class="three">
-          <figure class="shot"><img src="/shots/theme-calendar.webp" alt="The calendar page with the Bocchi the Rock! theme" width="592" height="444" loading="lazy"></figure>
-          <figure class="shot"><img src="/shots/theme-hardware.webp" alt="The hardware page with the Bocchi the Rock! theme" width="592" height="444" loading="lazy"></figure>
-          <figure class="shot"><img src="/shots/theme-focus.webp" alt="The Focus page with the Bocchi the Rock! theme" width="569" height="427" loading="lazy"></figure>
-        </div>
-        <p class="also">Get themes in Settings › Theme, or make your own in the theme editor that comes with Nyatch. Bocchi the Rock! and Miku are there now.</p>
+    <section id="themes" class="row flip">
+      <div class="text">
+        <h2>Give it a face.</h2>
+        <p>A theme brings a picture for every moment, a colour and a font. She looks up when the volume changes, sleeps through Do not disturb, and panics when an alarm goes off.</p>
+        <p>Bocchi the Rock! and Miku are in Settings › Theme now. Nyatch comes with an editor to make your own.</p>
+      </div>
+      <div class="show">
+        <figure class="strip both">
+          <img src="/shots/cut/theme-calendar.webp" alt="The top notch with the Bocchi the Rock! theme" width="472" height="186" loading="lazy">
+          <img src="/shots/cut/theme-focus.webp" alt="The Focus page with the Bocchi the Rock! theme" width="448" height="335" loading="lazy">
+        </figure>
       </div>
     </section>
 
-    <section id="windows">
-      <div class="wrap">
-        <h2>Feels like it came with Windows.</h2>
-        <dl class="facts grid">
-          <div><dt>Mica and acrylic</dt><dd>The same materials as Windows 11, in your accent colour or the album's.</dd></div>
-          <div><dt>Three shapes</dt><dd>A pill, a Windows 11 box, or a notch flush with the edge.</dd></div>
-          <div><dt>Out of the way</dt><dd>It hides for films and games, unless you want its game overlay.</dd></div>
-          <div><dt>Settings you know</dt><dd>In the style of Windows' own Settings, every hotkey in one place.</dd></div>
-          <div><dt>Updates itself</dt><dd>Every update is signed, and checked before it is installed.</dd></div>
-          <div><dt>Stays on your PC</dt><dd>Your settings, notes and keys never leave it.</dd></div>
-        </dl>
-      </div>
+    <section id="small-print" class="facts">
+      <h2>The rest.</h2>
+      <dl>
+        <div><dt>Windows 11's materials</dt><dd>Mica and acrylic, in your accent colour or the album's.</dd></div>
+        <div><dt>Three shapes</dt><dd>A pill, a Windows 11 box, or a notch flush with the edge.</dd></div>
+        <div><dt>Every key in one place</dt><dd>Settings in the style of Windows' own, every hotkey on one page.</dd></div>
+        <div><dt>Signed updates</dt><dd>Each update is checked before it installs, then Nyatch opens again.</dd></div>
+        <div><dt>Nothing leaves your PC</dt><dd>Settings, notes and keys stay on it.</dd></div>
+        <div><dt>Free</dt><dd>For Windows 10 and 11, 64-bit.</dd></div>
+      </dl>
     </section>
 
-    <section id="download" class="download">
-      <div class="wrap">
-        <h2>Get Nyatch.</h2>
-        <p class="lead">Free. For Windows 10 and 11, 64-bit. It installs in a few seconds.</p>
-        <a class="pill dark large" href="{{DOWNLOAD_URL}}" {{DOWNLOAD_STATE}}>{{DOWNLOAD_LABEL}}</a>
-        <p class="meta">{{DOWNLOAD_META}}</p>
-      </div>
+    <section id="download" class="end">
+      <h2>Get Nyatch.</h2>
+      <p class="go">
+        <a class="button" href="{{DOWNLOAD_URL}}" {{DOWNLOAD_STATE}}>{{DOWNLOAD_LABEL}}</a>
+        <span class="meta">{{DOWNLOAD_META}}</span>
+      </p>
+      <p class="quiet"><a href="/download">Every download and its checksum</a> · <a href="/releases">What changed</a></p>
     </section>
   </main>
 
   <footer>
-    <div class="wrap">
-      <span>Nyatch is made by <a href="https://arkhins.com">Arkhins</a>. © {{YEAR}}</span>
-      <nav aria-label="More">
-        <a href="/releases">Releases</a>
-        <a href="https://github.com/Arkhins-0/nyatch">GitHub</a>
-        <a href="mailto:arkhins@arkhins.com">Contact</a>
-      </nav>
-    </div>
+    <span>Made by <a href="https://arkhins.com">Arkhins</a>, © {{YEAR}}</span>
+    <nav aria-label="More">
+      <a href="https://github.com/Arkhins-0/nyatch">GitHub</a>
+      <a href="mailto:arkhins@arkhins.com">Contact</a>
+    </nav>
   </footer>
+
+  <script>
+    // The notch shows the visitor's time, as Nyatch does closed.
+    const clock = document.querySelector('[data-clock]');
+    const tick = () => { clock.textContent = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); };
+    tick();
+    setInterval(tick, 10000);
+
+    // A notch opens while pointed at (or focused, or tapped), and closes when left.
+    for (const notch of document.querySelectorAll('.notch')) {
+      const set = (open) => { notch.classList.toggle('open', open); notch.setAttribute('aria-expanded', String(open)); };
+      notch.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') set(true); });
+      notch.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') set(false); });
+      notch.addEventListener('click', () => set(!notch.classList.contains('open')));
+      notch.addEventListener('focus', () => set(true));
+      notch.addEventListener('blur', () => set(false));
+      notch.addEventListener('keydown', (e) => { if (e.key === 'Escape') { set(false); notch.blur(); } });
+    }
+
+    // The wheel turns the top notch's pages, as in the app.
+    const topNotch = document.getElementById('top');
+    const pages = [...topNotch.querySelectorAll('.pages img')];
+    let page = 0, lastTurn = 0;
+    const turn = (step) => {
+      pages[page].classList.remove('on');
+      page = (page + step + pages.length) % pages.length;
+      pages[page].classList.add('on');
+    };
+    topNotch.addEventListener('wheel', (e) => {
+      if (!topNotch.classList.contains('open')) return;
+      e.preventDefault();
+      const now = performance.now();
+      if (now - lastTurn < 350 || Math.abs(e.deltaY) < 4) return;
+      lastTurn = now;
+      turn(e.deltaY > 0 ? 1 : -1);
+    }, { passive: false });
+    topNotch.addEventListener('keydown', (e) => { if (e.key === 'ArrowDown' || e.key === 'ArrowRight') turn(1); if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') turn(-1); });
+
+    // The LLM tab slides the panel in; a click anywhere else slides it away.
+    const tab = document.getElementById('tab');
+    const desk = document.getElementById('desk');
+    const slide = (open) => { desk.classList.toggle('chat', open); tab.setAttribute('aria-expanded', String(open)); };
+    tab.addEventListener('click', (e) => { e.stopPropagation(); slide(!desk.classList.contains('chat')); });
+    document.addEventListener('click', (e) => { if (!e.target.closest('#panel') && e.target !== tab) slide(false); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') slide(false); });
+  </script>
 </body>
 </html>
