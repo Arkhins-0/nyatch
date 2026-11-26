@@ -1375,6 +1375,9 @@ bool g_hotkeyRegistered = false;
 std::atomic<bool> g_autoHiddenParked = false;          // true while OS-hidden due to idle/fullscreen auto-hide
 std::atomic<bool> g_fullscreenOverrideVisible = false; // user forced the island visible via hotkey while fullscreen
 std::atomic<bool> g_isFullscreen = false;              // cached fullscreen state, shared with the hotkey handler
+// Nyatch: a full-screen app is in front (and Nyatch is set to keep out of its way), even while the top notch shows
+// something over it (a ringing alarm, the volume, a notice). The second notch and the side panel's tab go by this.
+std::atomic<bool> g_fullscreenInFront = false;
 // Nyatch: a full-screen app (a game) is in front and the game overlay is on: the notch stays, showing
 // only the overlay (no song, no notices over the game). "Hide on full screen" used to hide the overlay
 // too, so it never showed while playing.
@@ -29680,6 +29683,7 @@ DWORD WINAPI RenderThreadProc(void*) {
             }
             isFullscreen = newFullscreen;
             g_isFullscreen.store(isFullscreen, std::memory_order_relaxed);
+            g_fullscreenInFront.store(fullscreenInFront && g_settings.autoHideFullscreen && !overlayWanted, std::memory_order_relaxed);
             lastFullscreenCheck = now;
         }
 
